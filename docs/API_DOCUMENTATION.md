@@ -389,11 +389,11 @@ DATABASE_URL=postgresql://...
 JWT_SECRET=your-secret-key
 NODE_ENV=development
 PORT=3000
-SMTP_HOST=smtp.gmail.com
+SMTP_HOST=your-smtp-host
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
+SMTP_USER=your-email@domain.com
 SMTP_PASS=your-app-password
-FROM_EMAIL=noreply@iams.edu
+FROM_EMAIL=noreply@yourdomain.com
 FRONTEND_URL=http://localhost:3000
 ```
 
