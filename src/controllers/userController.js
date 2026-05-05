@@ -7,7 +7,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
   const offset = (page - 1) * limit;
 
   let query = db('users')
-    .select('id', 'name', 'email', 'role', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'role', 'status', 'created_at', 'updated_at')
     .orderBy('created_at', 'desc');
 
   // Filter by role
@@ -48,7 +48,7 @@ const getUserById = asyncHandler(async (req, res) => {
 
   const user = await db('users')
     .where({ id })
-    .select('id', 'name', 'email', 'role', 'created_at', 'updated_at')
+    .select('id', 'name', 'email', 'role', 'status', 'created_at', 'updated_at')
     .first();
 
   if (!user) {

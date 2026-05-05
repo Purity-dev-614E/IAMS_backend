@@ -103,6 +103,11 @@ const schemas = {
     comments: Joi.string().optional(),
     improvements: Joi.string().optional(),
     rating: Joi.number().integer().min(0).max(100).required()
+  }),
+
+  // Refresh token
+  refreshToken: Joi.object({
+    refreshToken: Joi.string().required()
   })
 };
 
@@ -110,16 +115,20 @@ const schemas = {
 const validators = {
   registerUser: [
     body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
-    body('email').custom((value, { req }) => {
-      const { role } = req.body;
-      const domain = role === 'student' ? getStudentEmailDomain() : getSupervisorEmailDomain();
-      
-      if (!value.endsWith(domain)) {
-        throw new Error(`Email must end with @${domain}`);
-      }
-      
-      return value;
-    }).normalizeEmail().withMessage('Valid email required'),
+    // Email domain validation temporarily commented out
+    // body('email').custom((value, { req }) => {
+    //   const { role } = req.body;
+    //   const domain = role === 'student' ? getStudentEmailDomain() : getSupervisorEmailDomain();
+    //   
+    //   if (!value.endsWith(domain)) {
+    //     throw new Error(`Email must end with @${domain}`);
+    //   }
+    //   
+    //   return value;
+    // }).normalizeEmail().withMessage('Valid email required'),
+    
+    // Basic email validation only
+    body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('role').optional().isIn(['student', 'uni_supervisor', 'admin']).withMessage('Invalid role'),
     // Student-specific validations
@@ -166,6 +175,11 @@ const validators = {
     body('week_number').isInt({ min: 1 }).withMessage('Week number must be a positive integer'),
     body('week_start_date').isISO8601().withMessage('Valid start date required'),
     body('week_end_date').isISO8601().withMessage('Valid end date required'),
+    validate
+  ],
+
+  refreshToken: [
+    body('refreshToken').notEmpty().withMessage('Refresh token required'),
     validate
   ],
 

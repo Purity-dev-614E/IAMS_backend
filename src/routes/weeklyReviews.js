@@ -24,11 +24,11 @@ router.post('/', authorize.admin(), validators.weeklyReview, createWeeklyReview)
 router.post('/automated', authorize.admin(), createWeeklyReviewsAutomated);
 router.put('/:id/status', authorize.admin(), updateWeeklyReviewStatus);
 
+// Student routes (must come before /:id to avoid route conflicts)
+router.get('/my-reviews', authorize.student(), getStudentWeeklyReviews);
+
 // Staff routes (admin + uni_supervisor)
 router.get('/attachment/:attachmentId', authorize.staff(), getWeeklyReviewsByAttachment);
 router.get('/:id', authorize.staff(), getWeeklyReviewById);
-
-// Student routes
-router.get('/my-reviews', authorize.student(), getStudentWeeklyReviews);
 
 module.exports = router;

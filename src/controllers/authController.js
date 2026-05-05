@@ -1,15 +1,40 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
 
-// Generate JWT token
+// Generate JWT access token
 const generateToken = (userId, email, role) => {
   return jwt.sign(
     { userId, email, role },
     process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-    { expiresIn: '24h' }
+    { expiresIn: '15m' } // Short-lived access token
   );
+};
+
+// Generate refresh token
+const generateRefreshToken = () => {
+  return crypto.randomBytes(64).toString('hex');
+};
+
+// Store refresh token in database
+const storeRefreshToken = async (userId, refreshToken) => {
+  // Revoke existing refresh tokens for this user
+  await db('refresh_tokens')
+    .where({ user_id: userId, is_revoked: false })
+    .update({ is_revoked: true });
+
+  // Calculate expiry (7 days from now)
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  // Store new refresh token
+  await db('refresh_tokens').insert({
+    user_id: userId,
+    token: refreshToken,
+    expires_at: expiresAt
+  });
 };
 
 // Register new user
@@ -69,10 +94,13 @@ const register = asyncHandler(async (req, res) => {
 
   // Generate token only for active users (students) or admins
   let token = null;
+  let refreshToken = null;
   let message = '';
   
   if (role === 'student' || role === 'admin') {
     token = generateToken(user.id, user.email, user.role);
+    refreshToken = generateRefreshToken();
+    await storeRefreshToken(user.id, refreshToken);
     message = role === 'student' 
       ? 'Student registered successfully' 
       : 'Admin registered successfully';
@@ -95,6 +123,7 @@ const register = asyncHandler(async (req, res) => {
 
   if (token) {
     response.token = token;
+    response.refreshToken = refreshToken;
   }
 
   if (studentProfile) {
@@ -142,13 +171,16 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate token
+  // Generate tokens
   const token = generateToken(user.id, user.email, user.role);
+  const refreshToken = generateRefreshToken();
+  await storeRefreshToken(user.id, refreshToken);
 
   res.json({
     success: true,
     message: 'Login successful',
     token,
+    refreshToken,
     user: {
       id: user.id,
       name: user.name,
@@ -229,10 +261,80 @@ const changePassword = asyncHandler(async (req, res) => {
   });
 });
 
-// Logout (client-side token invalidation)
+// Refresh access token
+const refreshToken = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({
+      success: false,
+      message: 'Refresh token required'
+    });
+  }
+
+  // Find refresh token in database
+  const tokenRecord = await db('refresh_tokens')
+    .where({ token: refreshToken, is_revoked: false })
+    .first();
+
+  if (!tokenRecord) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired refresh token'
+    });
+  }
+
+  // Check if refresh token has expired
+  if (new Date() > new Date(tokenRecord.expires_at)) {
+    // Mark as expired
+    await db('refresh_tokens')
+      .where({ id: tokenRecord.id })
+      .update({ is_revoked: true });
+
+    return res.status(401).json({
+      success: false,
+      message: 'Refresh token expired'
+    });
+  }
+
+  // Get user details
+  const user = await db('users')
+    .where({ id: tokenRecord.user_id })
+    .first();
+
+  if (!user || user.status === 'pending' || user.status === 'rejected') {
+    return res.status(401).json({
+      success: false,
+      message: 'User account not active'
+    });
+  }
+
+  // Generate new tokens
+  const newAccessToken = generateToken(user.id, user.email, user.role);
+  const newRefreshToken = generateRefreshToken();
+
+  // Store new refresh token and revoke old one
+  await storeRefreshToken(user.id, newRefreshToken);
+
+  res.json({
+    success: true,
+    message: 'Token refreshed successfully',
+    token: newAccessToken,
+    refreshToken: newRefreshToken
+  });
+});
+
+// Logout (invalidate refresh token)
 const logout = asyncHandler(async (req, res) => {
-  // In a stateless JWT system, logout is handled client-side
-  // Optionally, we could implement a token blacklist here
+  const { refreshToken } = req.body;
+
+  if (refreshToken) {
+    // Invalidate the refresh token
+    await db('refresh_tokens')
+      .where({ token: refreshToken })
+      .update({ is_revoked: true });
+  }
+
   res.json({
     success: true,
     message: 'Logout successful'
@@ -242,6 +344,7 @@ const logout = asyncHandler(async (req, res) => {
 module.exports = {
   register,
   login,
+  refreshToken,
   getProfile,
   updateProfile,
   changePassword,

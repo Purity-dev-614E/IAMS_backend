@@ -55,7 +55,8 @@ const getDailyLogById = asyncHandler(async (req, res) => {
       'daily_logs.*',
       'attachments.organization_name',
       'users.name as student_name',
-      'students.reg_number'
+      'students.reg_number',
+      'students.id as student_id'
     )
     .where('daily_logs.id', id)
     .first();
@@ -68,11 +69,14 @@ const getDailyLogById = asyncHandler(async (req, res) => {
   }
 
   // Check authorization: student can only access own logs
-  if (req.user.role === 'student' && log.student_id !== req.user.id) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. You can only access your own logs.'
-    });
+  if (req.user.role === 'student') {
+    const student = await db('students').where('user_id', req.user.id).first();
+    if (!student || log.student_id !== student.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only access your own logs.'
+      });
+    }
   }
 
   res.json({
@@ -131,9 +135,14 @@ const createDailyLog = asyncHandler(async (req, res) => {
   // Validate log date
   const logDate = new Date(log_date);
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  
+  // Normalize both dates to UTC midnight for accurate comparison
+  const logDateUTC = new Date(logDate);
+  logDateUTC.setUTCHours(0, 0, 0, 0);
+  const todayUTC = new Date(today);
+  todayUTC.setUTCHours(0, 0, 0, 0);
 
-  if (logDate > today) {
+  if (logDateUTC > todayUTC) {
     return res.status(400).json({
       success: false,
       message: 'Log date cannot be in the future'

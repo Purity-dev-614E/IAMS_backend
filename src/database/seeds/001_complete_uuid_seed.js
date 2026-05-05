@@ -104,12 +104,19 @@ exports.seed = async function(knex) {
     }
   ]);
   
+  // Generate realistic dates for attachments (8-12 weeks ago from today)
+  const today = new Date();
+  const attachmentStartDate = new Date(today);
+  attachmentStartDate.setDate(today.getDate() - 84); // 12 weeks ago
+  const attachmentEndDate = new Date(attachmentStartDate);
+  attachmentEndDate.setDate(attachmentStartDate.getDate() + 84); // 12 weeks duration
+  
   // Generate UUIDs for attachments
   const attachment1Id = uuidv4();
   const attachment2Id = uuidv4();
   const attachment3Id = uuidv4();
   
-  // Insert attachments
+  // Insert attachments with realistic dates
   await knex('attachments').insert([
     {
       id: attachment1Id,
@@ -117,8 +124,8 @@ exports.seed = async function(knex) {
       organization_name: 'Tech Solutions Kenya',
       industry_supervisor_name: 'James Mwangi',
       industry_supervisor_email: 'j.mwangi@techsolutions.co.ke',
-      start_date: '2024-01-08',
-      end_date: '2024-04-05',
+      start_date: attachmentStartDate.toISOString().split('T')[0],
+      end_date: attachmentEndDate.toISOString().split('T')[0],
       status: 'active'
     },
     {
@@ -127,8 +134,8 @@ exports.seed = async function(knex) {
       organization_name: 'Digital Innovations Ltd',
       industry_supervisor_name: 'Grace Njoroge',
       industry_supervisor_email: 'g.njoroge@digitalinnovations.com',
-      start_date: '2024-01-08',
-      end_date: '2024-04-05',
+      start_date: attachmentStartDate.toISOString().split('T')[0],
+      end_date: attachmentEndDate.toISOString().split('T')[0],
       status: 'active'
     },
     {
@@ -137,27 +144,31 @@ exports.seed = async function(knex) {
       organization_name: 'Cyber Security Africa',
       industry_supervisor_name: 'David Mutua',
       industry_supervisor_email: 'd.mutua@cybersecurity.africa',
-      start_date: '2024-01-15',
-      end_date: '2024-04-12',
+      start_date: attachmentStartDate.toISOString().split('T')[0],
+      end_date: attachmentEndDate.toISOString().split('T')[0],
       status: 'active'
     }
   ]);
   
-  // Generate some sample daily logs
+  // Generate realistic daily logs over the past 8-12 weeks
   const dailyLogs = [];
-  const today = new Date();
+  const logsStartDate = new Date(attachmentStartDate);
   
-  for (let i = 0; i < 10; i++) {
-    const logDate = new Date(today);
-    logDate.setDate(today.getDate() - i);
+  // Generate logs for the past 8 weeks (56 days)
+  for (let i = 0; i < 56; i++) {
+    const logDate = new Date(logsStartDate);
+    logDate.setDate(logsStartDate.getDate() + i);
+    
+    // Skip weekends
+    if (logDate.getDay() === 0 || logDate.getDay() === 6) continue;
     
     dailyLogs.push({
       id: uuidv4(),
       attachment_id: attachment1Id,
       log_date: logDate.toISOString().split('T')[0],
-      tasks_performed: `Day ${i + 1}: Worked on user authentication system and database design`,
-      skills_acquired: `Day ${i + 1}: Improved JavaScript skills, learned about JWT authentication`,
-      observations: `Day ${i + 1}: Team collaboration is going well, code reviews are helpful`,
+      tasks_performed: `Day ${Math.floor(i/7) + 1}: Developed RESTful APIs, implemented authentication middleware, optimized database queries`,
+      skills_acquired: `Day ${Math.floor(i/7) + 1}: Enhanced Node.js skills, learned PostgreSQL optimization, improved API design patterns`,
+      observations: `Day ${Math.floor(i/7) + 1}: Agile sprint planning effective, code reviews improving quality, mentorship from senior developers valuable`,
       status: 'submitted',
       submitted_at: logDate
     });
@@ -165,25 +176,33 @@ exports.seed = async function(knex) {
   
   await knex('daily_logs').insert(dailyLogs);
   
-  // Generate some weekly reviews
-  const weeklyReviews = [
-    {
-      id: uuidv4(),
-      attachment_id: attachment1Id,
-      week_number: 1,
-      week_start_date: '2024-01-08',
-      week_end_date: '2024-01-14',
-      status: 'pending'
-    },
-    {
-      id: uuidv4(),
-      attachment_id: attachment1Id,
-      week_number: 2,
-      week_start_date: '2024-01-15',
-      week_end_date: '2024-01-21',
-      status: 'industry_reviewed'
+  // Generate weekly reviews for all 12 weeks
+  const weeklyReviews = [];
+  for (let week = 1; week <= 12; week++) {
+    const weekStart = new Date(attachmentStartDate);
+    weekStart.setDate(attachmentStartDate.getDate() + (week - 1) * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    // Determine status based on how recent the week is
+    let status = 'pending';
+    if (week < 8) {
+      status = 'complete';
+    } else if (week < 10) {
+      status = 'industry_reviewed';
+    } else if (week < 12) {
+      status = 'uni_reviewed';
     }
-  ];
+    
+    weeklyReviews.push({
+      id: uuidv4(),
+      attachment_id: attachment1Id,
+      week_number: week,
+      week_start_date: weekStart.toISOString().split('T')[0],
+      week_end_date: weekEnd.toISOString().split('T')[0],
+      status: status
+    });
+  }
   
   await knex('weekly_reviews').insert(weeklyReviews);
   

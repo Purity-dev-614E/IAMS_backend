@@ -5,6 +5,7 @@ const router = express.Router();
 const {
   register,
   login,
+  refreshToken,
   getProfile,
   updateProfile,
   changePassword,
@@ -18,6 +19,7 @@ const { validators } = require('../middleware/validation');
 // Public routes
 router.post('/register', validators.registerUser, register);
 router.post('/login', validators.loginUser, login);
+router.post('/refresh-token', validators.refreshToken, refreshToken);
 
 // Protected routes
 router.get('/me', auth, getProfile);
