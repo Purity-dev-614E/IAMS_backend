@@ -3,7 +3,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 // Get all attachments (admin/supervisor)
 const getAllAttachments = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search, status, organization } = req.query;
+  const { page = 1, limit = 20, search, status, organization, student_id } = req.query;
   const offset = (page - 1) * limit;
 
   let query = db('attachments')
@@ -29,7 +29,17 @@ const getAllAttachments = asyncHandler(async (req, res) => {
     )
     .orderBy('attachments.created_at', 'desc');
 
+  // Role-based filtering
+  if (req.user.role === 'uni_supervisor') {
+    // University supervisors can only see attachments for their assigned students
+    query = query.where('students.uni_supervisor_id', req.user.id);
+  }
+
   // Apply filters
+  if (student_id) {
+    query = query.where('attachments.student_id', student_id);
+  }
+
   if (search) {
     query = query.where(function() {
       this.where('attachments.organization_name', 'ilike', `%${search}%`)

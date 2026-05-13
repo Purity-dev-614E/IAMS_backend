@@ -131,6 +131,23 @@ const schemas = {
   reviewReport: Joi.object({
     status: Joi.string().valid('approved', 'rejected').required(),
     feedback_comments: Joi.string().optional()
+  }),
+
+  // End of attachment report (text)
+  endOfAttachmentTextReport: Joi.object({
+    attachment_id: Joi.string().uuid().required(),
+    text_content: Joi.string().min(100).required()
+  }),
+
+  // End of attachment report (PDF)
+  endOfAttachmentPDFReport: Joi.object({
+    attachment_id: Joi.string().uuid().required()
+  }),
+
+  // Review report
+  reviewReport: Joi.object({
+    status: Joi.string().valid('approved', 'rejected').required(),
+    feedback_comments: Joi.string().optional()
   })
 };
 
@@ -210,6 +227,24 @@ const validators = {
 
   idParam: [
     param('id').isUUID().withMessage('Valid UUID required'),
+    validate
+  ],
+
+  endOfAttachmentTextReport: [
+    body('attachment_id').isUUID().withMessage('Valid attachment UUID required'),
+    body('text_content').trim().isLength({ min: 100 }).withMessage('Report content must be at least 100 characters'),
+    validate
+  ],
+
+  endOfAttachmentPDFReport: [
+    body('attachment_id').isUUID().withMessage('Valid attachment UUID required'),
+    validate
+  ],
+
+  reviewReport: [
+    param('id').isUUID().withMessage('Valid report UUID required'),
+    body('status').isIn(['approved', 'rejected']).withMessage('Status must be approved or rejected'),
+    body('feedback_comments').optional().trim(),
     validate
   ],
 

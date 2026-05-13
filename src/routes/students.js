@@ -30,10 +30,12 @@ router.post('/:id/assign-supervisor', authorize.admin(), assignSupervisor);
 // Staff routes (admin + uni_supervisor)
 router.get('/', authorize.staff(), getAllStudents);
 router.get('/available-supervisors', authorize.staff(), getAvailableSupervisors);
-router.get('/:id', authorize.staff(), getStudentById);
 
-// University supervisor specific routes
+// University supervisor specific routes (must come before /:id)
 router.get('/my-students', authorize.uniSupervisor(), getSupervisorStudents);
+
+// Parameterized routes (must come last)
+router.get('/:id', authorize.staff(), getStudentById);
 
 // Student specific routes
 router.get('/profile/me', authorize.student(), getStudentProfile);

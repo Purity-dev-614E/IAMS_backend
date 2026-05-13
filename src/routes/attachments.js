@@ -24,8 +24,8 @@ router.use(auth);
 router.post('/', authorize.student(), validators.attachment, createAttachment);
 router.get('/my-attachments', authorize.student(), getStudentAttachments);
 
-// Admin only routes (general routes last)
-router.get('/', authorize.admin(), getAllAttachments);
+// Staff routes (admin + uni_supervisor)
+router.get('/', authorize.staff(), getAllAttachments);
 router.get('/:id', authorize.staff(), getAttachmentById);
 router.put('/:id', authorize.admin(), updateAttachment);
 router.put('/:id/status', authorize.admin(), updateAttachmentStatus);
