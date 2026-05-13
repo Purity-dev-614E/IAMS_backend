@@ -9,7 +9,8 @@ const {
   updateStudent,
   assignSupervisor,
   getSupervisorStudents,
-  getStudentProfile
+  getStudentProfile,
+  getAvailableSupervisors
 } = require('../controllers/studentController');
 
 // Import middleware
@@ -24,9 +25,11 @@ router.use(auth);
 router.post('/', authorize.admin(), createStudent);
 router.put('/:id', authorize.admin(), updateStudent);
 router.put('/:id/assign-supervisor', authorize.admin(), assignSupervisor);
+router.post('/:id/assign-supervisor', authorize.admin(), assignSupervisor);
 
 // Staff routes (admin + uni_supervisor)
 router.get('/', authorize.staff(), getAllStudents);
+router.get('/available-supervisors', authorize.staff(), getAvailableSupervisors);
 router.get('/:id', authorize.staff(), getStudentById);
 
 // University supervisor specific routes

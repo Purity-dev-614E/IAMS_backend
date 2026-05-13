@@ -31,6 +31,12 @@ const schemas = {
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
     role: Joi.string().valid('student', 'uni_supervisor', 'admin').default('student'),
+    // Supervisor-specific field
+    staff_id: Joi.when('role', {
+      is: 'uni_supervisor',
+      then: Joi.string().required(),
+      otherwise: Joi.string().optional()
+    }),
     // Student-specific fields
     reg_number: Joi.when('role', {
       is: 'student',
@@ -108,6 +114,23 @@ const schemas = {
   // Refresh token
   refreshToken: Joi.object({
     refreshToken: Joi.string().required()
+  }),
+
+  // End of attachment report (text)
+  endOfAttachmentTextReport: Joi.object({
+    attachment_id: Joi.string().uuid().required(),
+    text_content: Joi.string().min(100).required()
+  }),
+
+  // End of attachment report (PDF)
+  endOfAttachmentPDFReport: Joi.object({
+    attachment_id: Joi.string().uuid().required()
+  }),
+
+  // Review report
+  reviewReport: Joi.object({
+    status: Joi.string().valid('approved', 'rejected').required(),
+    feedback_comments: Joi.string().optional()
   })
 };
 
@@ -131,6 +154,8 @@ const validators = {
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('role').optional().isIn(['student', 'uni_supervisor', 'admin']).withMessage('Invalid role'),
+    // Supervisor-specific validation
+    body('staff_id').if(body('role').equals('uni_supervisor')).trim().notEmpty().withMessage('Staff ID required for university supervisors'),
     // Student-specific validations
     body('reg_number').if(body('role').equals('student')).trim().notEmpty().withMessage('Registration number required for students'),
     body('program').if(body('role').equals('student')).trim().notEmpty().withMessage('Program required for students'),
@@ -185,6 +210,24 @@ const validators = {
 
   idParam: [
     param('id').isUUID().withMessage('Valid UUID required'),
+    validate
+  ],
+
+  endOfAttachmentTextReport: [
+    body('attachment_id').isUUID().withMessage('Valid attachment UUID required'),
+    body('text_content').trim().isLength({ min: 100 }).withMessage('Report content must be at least 100 characters'),
+    validate
+  ],
+
+  endOfAttachmentPDFReport: [
+    body('attachment_id').isUUID().withMessage('Valid attachment UUID required'),
+    validate
+  ],
+
+  reviewReport: [
+    param('id').isUUID().withMessage('Valid report UUID required'),
+    body('status').isIn(['approved', 'rejected']).withMessage('Status must be approved or rejected'),
+    body('feedback_comments').optional().trim(),
     validate
   ]
 };

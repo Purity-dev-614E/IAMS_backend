@@ -224,6 +224,14 @@ const assignSupervisor = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { uni_supervisor_id } = req.body;
 
+  // Validate request body
+  if (!uni_supervisor_id) {
+    return res.status(400).json({
+      success: false,
+      message: 'uni_supervisor_id is required in request body'
+    });
+  }
+
   // Check if student exists
   const student = await db('students').where({ id }).first();
   if (!student) {
@@ -318,6 +326,46 @@ const getStudentProfile = asyncHandler(async (req, res) => {
   });
 });
 
+// Get available university supervisors
+const getAvailableSupervisors = asyncHandler(async (req, res) => {
+  const { maxStudents = 50 } = req.query; // Default max students per supervisor
+  
+  const supervisors = await db('users')
+    .leftJoin('students', 'users.id', 'students.uni_supervisor_id')
+    .where('users.role', 'uni_supervisor')
+    .select(
+      'users.id',
+      'users.name',
+      'users.email',
+      'users.created_at',
+      db.raw('COUNT(students.id) as current_student_count')
+    )
+    .groupBy('users.id', 'users.name', 'users.email', 'users.created_at')
+    .orderBy('users.name', 'asc');
+
+  // Filter supervisors who haven't reached their max limit
+  const availableSupervisors = supervisors.filter(supervisor => 
+    supervisor.current_student_count < parseInt(maxStudents)
+  );
+
+  res.json({
+    success: true,
+    supervisors: availableSupervisors.map(supervisor => ({
+      id: supervisor.id,
+      name: supervisor.name,
+      email: supervisor.email,
+      current_student_count: parseInt(supervisor.current_student_count),
+      max_student_limit: parseInt(maxStudents),
+      available_slots: parseInt(maxStudents) - parseInt(supervisor.current_student_count),
+      is_available: supervisor.current_student_count < parseInt(maxStudents)
+    })),
+    pagination: {
+      total_supervisors: supervisors.length,
+      available_supervisors: availableSupervisors.length
+    }
+  });
+});
+
 module.exports = {
   getAllStudents,
   getStudentById,
@@ -325,5 +373,6 @@ module.exports = {
   updateStudent,
   assignSupervisor,
   getSupervisorStudents,
-  getStudentProfile
+  getStudentProfile,
+  getAvailableSupervisors
 };

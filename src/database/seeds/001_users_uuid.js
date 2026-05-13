@@ -32,14 +32,16 @@ exports.seed = async function(knex) {
       name: 'Dr. Sarah Johnson',
       email: 's.johnson@iams.edu',
       password_hash: supervisorPassword,
-      role: 'uni_supervisor'
+      role: 'uni_supervisor',
+      staff_id: 'STF001'
     },
     {
       id: supervisor2Id,
       name: 'Dr. Michael Chen',
       email: 'm.chen@iams.edu',
       password_hash: supervisorPassword,
-      role: 'uni_supervisor'
+      role: 'uni_supervisor',
+      staff_id: 'STF002'
     },
     {
       id: student1Id,

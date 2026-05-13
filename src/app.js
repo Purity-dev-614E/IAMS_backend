@@ -20,10 +20,15 @@ const dailyLogRoutes = require('./routes/dailyLogs');
 const weeklyReviewRoutes = require('./routes/weeklyReviews');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
+const endOfAttachmentReportRoutes = require('./routes/endOfAttachmentReports');
 
 const app = express();
 
-// Security middleware (first)
+// Body parsing middleware (first, before security and logging)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Security middleware
 app.use(helmet);
 app.use(customSecurityHeaders);
 app.use(cors);
@@ -35,10 +40,6 @@ app.use(generalLimiter);
 // Logging middleware
 app.use(securityLogger);
 app.use(logger);
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Trust proxy for rate limiting and IP detection
 app.set('trust proxy', 1);
@@ -80,6 +81,7 @@ app.use('/api/daily-logs', dailyLogRoutes);
 app.use('/api/weekly-reviews', weeklyReviewRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/end-of-attachment-reports', endOfAttachmentReportRoutes);
 
 // API routes with authentication and authorization
 app.get('/api/profile', auth, (req, res) => {

@@ -39,7 +39,7 @@ const storeRefreshToken = async (userId, refreshToken) => {
 
 // Register new user
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role = 'student', reg_number, program, year_of_study } = req.body;
+  const { name, email, password, role = 'student', staff_id, reg_number, program, year_of_study } = req.body;
 
   // Check if user already exists
   const existingUser = await db('users').where({ email }).first();
@@ -48,6 +48,17 @@ const register = asyncHandler(async (req, res) => {
       success: false,
       message: 'User with this email already exists'
     });
+  }
+
+  // For supervisors, check if staff_id already exists
+  if (role === 'uni_supervisor' && staff_id) {
+    const existingStaffId = await db('users').where({ staff_id }).first();
+    if (existingStaffId) {
+      return res.status(409).json({
+        success: false,
+        message: 'Staff ID already exists'
+      });
+    }
   }
 
   // For students, check if reg_number already exists
@@ -71,6 +82,7 @@ const register = asyncHandler(async (req, res) => {
     email,
     password_hash: passwordHash,
     role,
+    staff_id: role === 'uni_supervisor' ? staff_id : null,
     // For supervisors, set as pending approval
     status: role === 'uni_supervisor' ? 'pending' : 'active'
   }).returning('*');
