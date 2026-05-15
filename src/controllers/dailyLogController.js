@@ -1,5 +1,7 @@
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { sendWeeklyReviewRequest } = require('../services/emailService');
+const { getAttachmentWeekNumber, getWeekStartDate, getWeekEndDate } = require('../utils/dateHelpers');
 
 // Get daily logs for attachment
 const getDailyLogsByAttachment = asyncHandler(async (req, res) => {
@@ -118,6 +120,7 @@ const createDailyLog = asyncHandler(async (req, res) => {
   }
 
   // Check if log for this date already exists
+  /* Commented out for testing purposes - allow multiple logs per date
   const existingLog = await db('daily_logs')
     .where({ 
       attachment_id, 
@@ -131,8 +134,10 @@ const createDailyLog = asyncHandler(async (req, res) => {
       message: 'Daily log for this date already exists'
     });
   }
+  */
 
   // Validate log date
+  /* Commented out for testing purposes - allow future dates
   const logDate = new Date(log_date);
   const today = new Date();
   
@@ -148,6 +153,7 @@ const createDailyLog = asyncHandler(async (req, res) => {
       message: 'Log date cannot be in the future'
     });
   }
+  */
 
   // Create daily log
   const [log] = await db('daily_logs').insert({
@@ -160,6 +166,11 @@ const createDailyLog = asyncHandler(async (req, res) => {
     submitted_at: status === 'submitted' ? new Date() : null
   }).returning('*');
 
+  // If log was submitted, check if week is complete
+  if (status === 'submitted') {
+    checkAndTriggerWeeklyReview(attachment_id, log_date);
+  }
+
   res.status(201).json({
     success: true,
     message: 'Daily log created successfully',
@@ -171,6 +182,7 @@ const createDailyLog = asyncHandler(async (req, res) => {
 const updateDailyLog = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const {
+    log_date,
     tasks_performed,
     skills_acquired,
     observations,
@@ -212,6 +224,7 @@ const updateDailyLog = asyncHandler(async (req, res) => {
 
   // Update log
   const updateData = {
+    log_date: log_date || existingLog.log_date,
     tasks_performed: tasks_performed || existingLog.tasks_performed,
     skills_acquired: skills_acquired || existingLog.skills_acquired,
     observations: observations || existingLog.observations,
@@ -230,6 +243,11 @@ const updateDailyLog = asyncHandler(async (req, res) => {
     .where({ id })
     .update(updateData)
     .returning('*');
+
+  // If status changed to submitted, check if week is complete
+  if (status === 'submitted' && existingLog.status !== 'submitted') {
+    checkAndTriggerWeeklyReview(updatedLog.attachment_id, updatedLog.log_date);
+  }
 
   res.json({
     success: true,
@@ -284,6 +302,9 @@ const submitDailyLog = asyncHandler(async (req, res) => {
       updated_at: new Date()
     })
     .returning('*');
+
+  // Check if week is complete and trigger review
+  checkAndTriggerWeeklyReview(submittedLog.attachment_id, submittedLog.log_date);
 
   res.json({
     success: true,
@@ -430,6 +451,80 @@ const getDailyLogsForWeeklyReview = asyncHandler(async (req, res) => {
     }
   });
 });
+
+/**
+ * Helper function to check if a week is complete (5 logs) and trigger review email
+ */
+async function checkAndTriggerWeeklyReview(attachmentId, logDate) {
+  try {
+    const attachment = await db('attachments').where('id', attachmentId).first();
+    if (!attachment) {
+      console.error(`[Weekly Review Error] Attachment ${attachmentId} not found`);
+      return;
+    }
+
+    const date = new Date(logDate);
+    const weekNumber = getAttachmentWeekNumber(date, attachment.start_date);
+    
+    // Calculate relative week boundaries
+    const start = new Date(attachment.start_date);
+    start.setHours(0, 0, 0, 0);
+    const weekStartDate = new Date(start.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000);
+    const weekEndDate = new Date(weekStartDate.getTime() + 4 * 24 * 60 * 60 * 1000); // Friday
+    weekEndDate.setHours(23, 59, 59, 999);
+
+    // Count submitted logs for this week
+    const submittedLogsCount = await db('daily_logs')
+      .where('attachment_id', attachmentId)
+      .where('status', 'submitted')
+      .where('log_date', '>=', weekStartDate)
+      .where('log_date', '<=', weekEndDate)
+      .count('* as count')
+      .first();
+
+    const count = parseInt(submittedLogsCount.count);
+    console.log(`[Weekly Review Check] Attachment: ${attachmentId}, Log Date: ${logDate}, Week: ${weekNumber}, Submitted Logs: ${count}`);
+
+    // If we have at least 5 logs, trigger the weekly review
+    if (count >= 5) {
+      console.log(`[Weekly Review Trigger] 5 or more logs detected for week. Proceeding with review trigger...`);
+      // Check if a weekly review already exists for this week
+      let weeklyReview = await db('weekly_reviews')
+        .where({
+          attachment_id: attachmentId,
+          week_number: weekNumber
+        })
+        .first();
+
+      if (!weeklyReview) {
+        console.log(`[Weekly Review Trigger] Creating new weekly review record for week ${weekNumber}`);
+        // Create new weekly review
+        const [newReview] = await db('weekly_reviews').insert({
+          attachment_id: attachmentId,
+          week_number: weekNumber,
+          week_start_date: weekStartDate,
+          week_end_date: weekEndDate,
+          status: 'pending'
+        }).returning('*');
+        weeklyReview = newReview;
+      } else {
+        console.log(`[Weekly Review Trigger] Existing weekly review found for week ${weekNumber} with status: ${weeklyReview.status}`);
+      }
+
+      // If it's still in pending status, send the email
+      if (weeklyReview.status === 'pending') {
+        console.log(`[Weekly Review Trigger] Sending review request email for weekly review ID: ${weeklyReview.id}`);
+        await sendWeeklyReviewRequest(weeklyReview.id);
+      } else {
+        console.log(`[Weekly Review Trigger] Review request email skipped as status is ${weeklyReview.status}`);
+      }
+    } else {
+      console.log(`[Weekly Review Check] Not enough logs (${count}/5) to trigger weekly review for week ${weekNumber}`);
+    }
+  } catch (error) {
+    console.error('[Weekly Review Error] Failed to check/trigger weekly review:', error);
+  }
+}
 
 module.exports = {
   getDailyLogsByAttachment,

@@ -42,10 +42,11 @@ POST /api/weekly-reviews/automated # Automated creation
 
 **Automation Logic**:
 ```javascript
-// Group daily logs by week
-const weeklyGroups = groupLogsByWeek(dailyLogs);
+// Group daily logs by week relative to attachment start
+const weeklyGroups = groupLogsByWeek(dailyLogs, attachment.start_date);
 
 for (const [weekNumber, weekData] of Object.entries(weeklyGroups)) {
+  // weekNumber is relative to attachment start date (Week 1, 2, etc.)
   // Check if week review already exists
   const existingReview = await db('weekly_reviews')
     .where({ attachment_id, week_number: parseInt(weekNumber) })

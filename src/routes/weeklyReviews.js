@@ -13,22 +13,22 @@ const {
 
 // Import middleware
 const auth = require('../middleware/auth');
-const { authorize } = require('../middleware/rbac');
+const { authorize, rbac } = require('../middleware/rbac');
 const { validators } = require('../middleware/validation');
 
 // Apply authentication to all routes
 router.use(auth);
 
-// Admin only routes
-router.post('/', authorize.admin(), validators.weeklyReview, createWeeklyReview);
-router.post('/automated', authorize.admin(), createWeeklyReviewsAutomated);
+// Admin and Student routes
+router.post('/', rbac(['admin', 'student']), validators.weeklyReview, createWeeklyReview);
+router.post('/automated', rbac(['admin', 'student']), createWeeklyReviewsAutomated);
 router.put('/:id/status', authorize.admin(), updateWeeklyReviewStatus);
 
 // Student routes (must come before /:id to avoid route conflicts)
 router.get('/my-reviews', authorize.student(), getStudentWeeklyReviews);
 
-// Staff routes (admin + uni_supervisor)
-router.get('/attachment/:attachmentId', authorize.staff(), getWeeklyReviewsByAttachment);
-router.get('/:id', authorize.staff(), getWeeklyReviewById);
+// Staff and Student routes
+router.get('/attachment/:attachmentId', rbac(['admin', 'uni_supervisor', 'student']), getWeeklyReviewsByAttachment);
+router.get('/:id', rbac(['admin', 'uni_supervisor', 'student']), getWeeklyReviewById);
 
 module.exports = router;

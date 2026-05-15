@@ -1,12 +1,31 @@
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { sendWeeklyReviewRequest } = require('../services/emailService');
+const { 
+  getAttachmentWeekNumber, 
+  getWeekStartDate, 
+  getWeekEndDate, 
+  groupLogsByWeek 
+} = require('../utils/dateHelpers');
 
 // Get weekly reviews for attachment
 const getWeeklyReviewsByAttachment = asyncHandler(async (req, res) => {
   const { attachmentId } = req.params;
   const { page = 1, limit = 20, status } = req.query;
   const offset = (page - 1) * limit;
+
+  // Check authorization for students
+  if (req.user.role === 'student') {
+    const attachment = await db('attachments').where('id', attachmentId).first();
+    const student = await db('students').where('user_id', req.user.id).first();
+    
+    if (!attachment || !student || attachment.student_id !== student.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view reviews for your own attachment.'
+      });
+    }
+  }
 
   let query = db('weekly_reviews')
     .where('attachment_id', attachmentId)
@@ -53,6 +72,7 @@ const getWeeklyReviewById = asyncHandler(async (req, res) => {
       'users.email as student_email',
       'students.reg_number',
       'students.program',
+      'students.id as student_id',
       'industry_feedback.approval as industry_approval',
       'industry_feedback.comments as industry_comments',
       'industry_feedback.improvements as industry_improvements',
@@ -72,6 +92,17 @@ const getWeeklyReviewById = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check authorization for students
+  if (req.user.role === 'student') {
+    const student = await db('students').where('user_id', req.user.id).first();
+    if (!student || review.student_id !== student.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own weekly reviews.'
+      });
+    }
+  }
+
   res.json({
     success: true,
     review
@@ -87,13 +118,24 @@ const createWeeklyReview = asyncHandler(async (req, res) => {
     week_end_date
   } = req.body;
 
-  // Verify attachment exists
+  // Verify attachment exists and belongs to student if applicable
   const attachment = await db('attachments').where('id', attachment_id).first();
   if (!attachment) {
     return res.status(404).json({
       success: false,
       message: 'Attachment not found'
     });
+  }
+
+  // Check authorization for students
+  if (req.user.role === 'student') {
+    const student = await db('students').where('user_id', req.user.id).first();
+    if (!student || attachment.student_id !== student.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only create reviews for your own attachment.'
+      });
+    }
   }
 
   // Check if weekly review already exists for this week
@@ -155,6 +197,17 @@ const createWeeklyReviewsAutomated = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check authorization for students
+  if (req.user.role === 'student') {
+    const student = await db('students').where('user_id', req.user.id).first();
+    if (!student || attachment.student_id !== student.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only trigger reviews for your own attachment.'
+      });
+    }
+  }
+
   // Get all daily logs for this attachment
   const dailyLogs = await db('daily_logs')
     .where('attachment_id', attachmentId)
@@ -171,7 +224,7 @@ const createWeeklyReviewsAutomated = asyncHandler(async (req, res) => {
   }
 
   // Group logs by week
-  const weeklyGroups = groupLogsByWeek(dailyLogs);
+  const weeklyGroups = groupLogsByWeek(dailyLogs, attachment.start_date);
 
   // Create weekly reviews for each week
   const createdReviews = [];
@@ -289,48 +342,6 @@ const getStudentWeeklyReviews = asyncHandler(async (req, res) => {
     }
   });
 });
-
-// Helper function to group logs by week
-function groupLogsByWeek(dailyLogs) {
-  const weeklyGroups = {};
-  
-  for (const log of dailyLogs) {
-    const logDate = new Date(log.log_date);
-    const weekNumber = getWeekNumber(logDate);
-    
-    if (!weeklyGroups[weekNumber]) {
-      weeklyGroups[weekNumber] = {
-        startDate: getWeekStartDate(logDate),
-        endDate: getWeekEndDate(logDate),
-        logs: []
-      };
-    }
-    
-    weeklyGroups[weekNumber].logs.push(log);
-  }
-  
-  return weeklyGroups;
-}
-
-// Helper function to get week number
-function getWeekNumber(date) {
-  const firstDay = new Date(date.getFullYear(), 0, 1);
-  const daysDiff = Math.floor((date - firstDay) / (24 * 60 * 60 * 1000));
-  return Math.ceil(daysDiff / 7);
-}
-
-// Helper function to get week start date
-function getWeekStartDate(date) {
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(date.setDate(diff));
-}
-
-// Helper function to get week end date
-function getWeekEndDate(date) {
-  const startDate = getWeekStartDate(date);
-  return new Date(startDate.setDate(startDate.getDate() + 6));
-}
 
 module.exports = {
   getWeeklyReviewsByAttachment,

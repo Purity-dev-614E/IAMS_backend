@@ -130,7 +130,13 @@ const sendWeeklyReviewRequest = async (weeklyReviewId) => {
 
     await transporter.sendMail(mailOptions);
     
-    console.log(`Weekly review request sent to ${weeklyReview.industry_supervisor_email} for ${weeklyReview.student_name}`);
+    console.log('------------------------------------------------------------');
+    console.log(`[EMAIL SENT] Weekly Review Request`);
+    console.log(`Recipient: ${weeklyReview.industry_supervisor_email}`);
+    console.log(`Student:   ${weeklyReview.student_name} (${weeklyReview.reg_number})`);
+    console.log(`Week:      ${weeklyReview.week_number}`);
+    console.log(`Link:      ${reviewLink}`);
+    console.log('------------------------------------------------------------');
     
     return { 
       success: true, 
