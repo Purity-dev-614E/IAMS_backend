@@ -173,6 +173,13 @@ const createWeeklyReview = asyncHandler(async (req, res) => {
     status: 'pending'
   }).returning('*');
 
+  // Send industry supervisor email
+  try {
+    await sendWeeklyReviewRequest(review.id);
+  } catch (error) {
+    console.error(`Failed to send review request for week ${week_number}:`, error);
+  }
+
   res.status(201).json({
     success: true,
     message: 'Weekly review created successfully',
