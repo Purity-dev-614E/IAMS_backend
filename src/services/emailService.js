@@ -1,19 +1,8 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const db = require('../database/connection');
 const { generateVerificationToken } = require('../middleware/industryAuth');
 
-// Email configuration
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: process.env.SMTP_PORT || 587,
-    secure: false, // true for 465, false for other ports
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Send weekly review request to industry supervisor
 const sendWeeklyReviewRequest = async (weeklyReviewId) => {
@@ -73,26 +62,25 @@ const sendWeeklyReviewRequest = async (weeklyReviewId) => {
     const reviewLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/industry-review/${verificationToken}`;
 
     // Send email
-    const transporter = createTransporter();
-    const mailOptions = {
-      from: process.env.FROM_EMAIL || 'noreply@iams.edu',
+    await resend.emails.send({
+      from: process.env.FROM_EMAIL || 'IAMS <noreply@iams.edu>',
       to: weeklyReview.industry_supervisor_email,
       subject: `Weekly Review Request - ${weeklyReview.student_name} - Week ${weeklyReview.week_number}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">Weekly Review Request</h2>
           <p>Dear ${weeklyReview.industry_supervisor_name},</p>
-          
-          <p>Please review the weekly log for <strong>${weeklyReview.student_name}</strong> (${weeklyReview.reg_number}) 
+
+          <p>Please review the weekly log for <strong>${weeklyReview.student_name}</strong> (${weeklyReview.reg_number})
           for <strong>Week ${weeklyReview.week_number}</strong> (${weeklyReview.week_start_date} to ${weeklyReview.week_end_date}).</p>
-          
+
           <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <h3>Organization: ${weeklyReview.organization_name}</h3>
             <p><strong>Student:</strong> ${weeklyReview.student_name}</p>
             <p><strong>Registration Number:</strong> ${weeklyReview.reg_number}</p>
             <p><strong>Week:</strong> ${weeklyReview.week_number} (${weeklyReview.week_start_date} to ${weeklyReview.week_end_date})</p>
           </div>
-          
+
           <h3>Daily Logs Summary:</h3>
           <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
             <thead>
@@ -110,25 +98,23 @@ const sendWeeklyReviewRequest = async (weeklyReviewId) => {
               `).join('')}
             </tbody>
           </table>
-          
+
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${reviewLink}" 
-               style="background-color: #007bff; color: white; padding: 12px 30px; 
+            <a href="${reviewLink}"
+               style="background-color: #007bff; color: white; padding: 12px 30px;
                       text-decoration: none; border-radius: 5px; display: inline-block;">
               Review Weekly Log
             </a>
           </div>
-          
+
           <p style="color: #666; font-size: 12px;">
             This link will expire after submission. If you have any issues, please contact the university supervisor.
           </p>
-          
+
           <p>Best regards,<br>IAMS System</p>
         </div>
       `
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     
     console.log('------------------------------------------------------------');
     console.log(`[EMAIL SENT] Weekly Review Request`);
@@ -173,34 +159,31 @@ const sendFeedbackConfirmation = async (feedbackId) => {
       throw new Error('Feedback not found');
     }
 
-    const transporter = createTransporter();
-    const mailOptions = {
-      from: process.env.FROM_EMAIL || 'noreply@iams.edu',
+    await resend.emails.send({
+      from: process.env.FROM_EMAIL || 'IAMS <noreply@iams.edu>',
       to: feedback.industry_supervisor_email,
       subject: `Feedback Confirmation - ${feedback.student_name} - Week ${feedback.week_number}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">Feedback Submitted Successfully</h2>
           <p>Dear ${feedback.industry_supervisor_name},</p>
-          
-          <p>Thank you for reviewing the weekly log for <strong>${feedback.student_name}</strong> 
+
+          <p>Thank you for reviewing the weekly log for <strong>${feedback.student_name}</strong>
           (${feedback.reg_number}) for <strong>Week ${feedback.week_number}</strong>.</p>
-          
-          <div style="background-color: ${feedback.approval === 'approved' ? '#d4edda' : '#f8d7da'}; 
+
+          <div style="background-color: ${feedback.approval === 'approved' ? '#d4edda' : '#f8d7da'};
                       padding: 15px; border-radius: 5px; margin: 20px 0;">
             <h3>Your Decision: ${feedback.approval.toUpperCase()}</h3>
             ${feedback.comments ? `<p><strong>Comments:</strong> ${feedback.comments}</p>` : ''}
             ${feedback.improvements ? `<p><strong>Improvements Suggested:</strong> ${feedback.improvements}</p>` : ''}
           </div>
-          
+
           <p>Your feedback has been recorded and will be reviewed by the university supervisor.</p>
-          
+
           <p>Best regards,<br>IAMS System</p>
         </div>
       `
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     
     console.log(`Feedback confirmation sent to ${feedback.industry_supervisor_email}`);
     
