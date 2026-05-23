@@ -346,6 +346,6 @@ app.use(notFound);
 // Error handler (must be last)
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ;
 
 module.exports = app;
