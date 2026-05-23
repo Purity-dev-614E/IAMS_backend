@@ -5,18 +5,21 @@ module.exports = {
     client: 'postgresql',
     connection: {
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      query_timeout: 10000,
+      statement_timeout: 10000
     },
     pool: {
-      min: 2,
+      min: 0,
       max: 10,
-      acquireTimeoutMillis: 30000,
-      createTimeoutMillis: 30000,
+      acquireTimeoutMillis: 10000,
+      createTimeoutMillis: 10000,
       destroyTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 100,
-      propagateCreateError: false
+      propagateCreateError: true
     },
     migrations: {
       directory: './src/database/migrations',
@@ -31,18 +34,21 @@ module.exports = {
     client: 'postgresql',
     connection: {
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      query_timeout: 10000,
+      statement_timeout: 10000
     },
     pool: {
-      min: 2,
+      min: 0,
       max: 20,
-      acquireTimeoutMillis: 60000,
-      createTimeoutMillis: 60000,
+      acquireTimeoutMillis: 10000,
+      createTimeoutMillis: 10000,
       destroyTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 200,
-      propagateCreateError: false
+      propagateCreateError: true
     },
     migrations: {
       directory: './src/database/migrations',

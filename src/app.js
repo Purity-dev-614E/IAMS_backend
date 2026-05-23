@@ -23,6 +23,16 @@ const reportRoutes = require('./routes/reports');
 const endOfAttachmentReportRoutes = require('./routes/endOfAttachmentReports');
 
 const app = express();
+const DB_HEALTHCHECK_TIMEOUT_MS = 10000;
+
+const withTimeout = (promise, timeoutMs, message) => {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+};
 
 // Body parsing middleware (first, before security and logging)
 app.use(express.json({ limit: '10mb' }));
@@ -57,7 +67,11 @@ app.get('/health', (req, res) => {
 // Test database connection endpoint (no auth required for testing)
 app.get('/test-db', async (req, res) => {
   try {
-    await db.raw('SELECT 1');
+    await withTimeout(
+      db.raw('SELECT 1'),
+      DB_HEALTHCHECK_TIMEOUT_MS,
+      'Database connection timed out'
+    );
     res.json({ 
       success: true, 
       message: 'Database connection successful!',
