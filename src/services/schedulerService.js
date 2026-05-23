@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const db = require('../database/connection');
-const { sendWeeklyReviewRequest } = require('./emailService');
+const { sendWeeklyReviewRequest, sendDailyLogReminder } = require('./emailService');
 
 class SchedulerService {
   constructor() {
@@ -75,6 +75,73 @@ class SchedulerService {
     return job;
   }
 
+  // Schedule automatic attachment status maintenance (every day at 12:10 AM)
+  scheduleAttachmentStatusMaintenance() {
+    const job = cron.schedule('10 0 * * *', async () => {
+      console.log('Running attachment status maintenance...');
+      await this.processAttachmentStatuses();
+    }, {
+      scheduled: false,
+      timezone: 'Africa/Nairobi'
+    });
+
+    this.jobs.push(job);
+    return job;
+  }
+
+  // Complete expired attachments and deactivate active attachments with no logs for 3 weeks
+  async processAttachmentStatuses() {
+    try {
+      const completedCount = await this.completeExpiredAttachments();
+      const inactiveCount = await this.deactivateInactiveAttachments();
+
+      console.log(
+        `Attachment status maintenance complete. Completed: ${completedCount}, inactive: ${inactiveCount}`
+      );
+
+      return {
+        completed: completedCount,
+        inactive: inactiveCount
+      };
+    } catch (error) {
+      console.error('Error processing attachment statuses:', error);
+      throw error;
+    }
+  }
+
+  async completeExpiredAttachments() {
+    const completedAttachments = await db('attachments')
+      .whereIn('status', ['pending', 'active'])
+      .where('end_date', '<', db.raw('CURRENT_DATE'))
+      .update({
+        status: 'completed',
+        updated_at: new Date()
+      })
+      .returning('id');
+
+    return completedAttachments.length;
+  }
+
+  async deactivateInactiveAttachments() {
+    const inactiveAttachments = await db('attachments')
+      .where('status', 'active')
+      .where('start_date', '<=', db.raw(`CURRENT_DATE - INTERVAL '21 days'`))
+      .where('end_date', '>=', db.raw('CURRENT_DATE'))
+      .whereNotExists(function() {
+        this.select(db.raw('1'))
+          .from('daily_logs')
+          .whereRaw('daily_logs.attachment_id = attachments.id')
+          .where('daily_logs.log_date', '>=', db.raw(`CURRENT_DATE - INTERVAL '21 days'`));
+      })
+      .update({
+        status: 'inactive',
+        updated_at: new Date()
+      })
+      .returning('id');
+
+    return inactiveAttachments.length;
+  }
+
   // Send daily log reminders to students
   async sendDailyLogReminders() {
     try {
@@ -109,53 +176,7 @@ class SchedulerService {
 
   // Send individual daily log reminder
   async sendDailyLogReminder(attachment) {
-    const nodemailer = require('nodemailer');
-    
-    const transporter = nodemailer.createTransporter({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-
-    const mailOptions = {
-      from: process.env.FROM_EMAIL || 'noreply@iams.edu',
-      to: attachment.student_email,
-      subject: 'Daily Log Reminder',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Daily Log Reminder</h2>
-          <p>Dear ${attachment.student_name},</p>
-          
-          <p>This is a friendly reminder to submit your daily log for today.</p>
-          
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p>Please take a few minutes to document:</p>
-            <ul>
-              <li>Tasks performed today</li>
-              <li>Skills acquired</li>
-              <li>Observations and learning points</li>
-            </ul>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/student/logs" 
-               style="background-color: #007bff; color: white; padding: 12px 30px; 
-                      text-decoration: none; border-radius: 5px; display: inline-block;">
-              Submit Daily Log
-            </a>
-          </div>
-          
-          <p>Best regards,<br>IAMS System</p>
-        </div>
-      `
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`Daily log reminder sent to ${attachment.student_email}`);
+    return sendDailyLogReminder(attachment);
   }
 
   // Start all scheduled jobs
@@ -164,6 +185,7 @@ class SchedulerService {
     
     this.scheduleWeeklyReviews().start();
     this.scheduleDailyLogReminders().start();
+    this.scheduleAttachmentStatusMaintenance().start();
     
     console.log('Scheduler service started');
   }

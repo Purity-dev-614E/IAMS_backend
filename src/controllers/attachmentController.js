@@ -35,6 +35,26 @@ const getAllAttachments = asyncHandler(async (req, res) => {
     query = query.where('students.uni_supervisor_id', req.user.id);
   }
 
+  if (req.user.role === 'student') {
+    const student = await db('students').where('user_id', req.user.id).first();
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student profile not found'
+      });
+    }
+
+    query = query.where('attachments.student_id', student.id);
+
+    if (student_id && student_id !== student.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own attachments.'
+      });
+    }
+  }
+
   // Apply filters
   if (student_id) {
     query = query.where('attachments.student_id', student_id);
@@ -246,10 +266,10 @@ const updateAttachmentStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  if (!['pending', 'active', 'completed'].includes(status)) {
+  if (!['pending', 'active', 'completed', 'inactive'].includes(status)) {
     return res.status(400).json({
       success: false,
-      message: 'Invalid status. Must be pending, active, or completed'
+      message: 'Invalid status. Must be pending, active, completed, or inactive'
     });
   }
 

@@ -122,6 +122,43 @@ The IAMS (Internship Attendance Management System) supports three user types wit
 - **401 Unauthorized**: Invalid credentials or account pending/rejected
 - **404 Not Found**: User not found
 
+## Google Sign-In
+
+**Endpoint**: `POST /api/auth/google`
+
+Use the Google ID token from your frontend Google sign-in flow. The Google email must already belong to an active IAMS user.
+
+**Request Body**:
+```json
+{
+  "idToken": "google-id-token"
+}
+```
+
+**Successful Response** (200 OK):
+```json
+{
+  "success": true,
+  "message": "Google login successful",
+  "token": "access-token",
+  "refreshToken": "refresh-token",
+  "user": {
+    "id": "uuid",
+    "name": "John Doe",
+    "email": "john.doe@university.edu",
+    "role": "student",
+    "status": "active"
+  }
+}
+```
+
+**Configuration**:
+```env
+GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+```
+
+`CLIENT_ID` is also supported as a fallback for existing local setups.
+
 ## Supervisor Approval System
 
 ### Get Pending Supervisors

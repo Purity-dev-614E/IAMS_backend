@@ -1,0 +1,144 @@
+{
+  "info": {
+    "name": "IAMS Email Testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "recipientEmail",
+      "value": "your-email@example.com"
+    },
+    {
+      "key": "attachmentId",
+      "value": "replace-with-attachment-id"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Login Admin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.token) {",
+              "  pm.collectionVariables.set('adminToken', json.token);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@iams.edu\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Send Standalone Test Email",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"to\": \"{{recipientEmail}}\",\n  \"subject\": \"IAMS Postman email test\",\n  \"message\": \"This email was sent from the IAMS backend via Postman.\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/test-email",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "test-email"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Weekly Review And Send Real Email",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"attachment_id\": \"{{attachmentId}}\",\n  \"week_number\": 99,\n  \"week_start_date\": \"2026-05-18\",\n  \"week_end_date\": \"2026-05-22\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/weekly-reviews",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "weekly-reviews"
+          ]
+        }
+      }
+    }
+  ]
+}

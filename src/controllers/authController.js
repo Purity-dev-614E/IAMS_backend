@@ -1,8 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
+
+const googleClient = new OAuth2Client();
+
+const getGoogleClientId = () => process.env.GOOGLE_CLIENT_ID || process.env.CLIENT_ID;
 
 // Generate JWT access token
 const generateToken = (userId, email, role) => {
@@ -34,6 +39,54 @@ const storeRefreshToken = async (userId, refreshToken) => {
     user_id: userId,
     token: refreshToken,
     expires_at: expiresAt
+  });
+};
+
+const assertUserCanLogin = (user, res) => {
+  if (user.status === 'pending') {
+    res.status(401).json({
+      success: false,
+      message: 'Account pending admin approval'
+    });
+    return false;
+  }
+
+  if (user.status === 'rejected') {
+    res.status(401).json({
+      success: false,
+      message: 'Account registration rejected'
+    });
+    return false;
+  }
+
+  if (user.status === 'inactive') {
+    res.status(401).json({
+      success: false,
+      message: 'Account is inactive'
+    });
+    return false;
+  }
+
+  return true;
+};
+
+const sendLoginResponse = async (res, user, message) => {
+  const token = generateToken(user.id, user.email, user.role);
+  const refreshToken = generateRefreshToken();
+  await storeRefreshToken(user.id, refreshToken);
+
+  res.json({
+    success: true,
+    message,
+    token,
+    refreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status
+    }
   });
 };
 
@@ -159,19 +212,8 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if user is active (for supervisors)
-  if (user.status === 'pending') {
-    return res.status(401).json({
-      success: false,
-      message: 'Account pending admin approval'
-    });
-  }
-
-  if (user.status === 'rejected') {
-    return res.status(401).json({
-      success: false,
-      message: 'Account registration rejected'
-    });
+  if (!assertUserCanLogin(user, res)) {
+    return;
   }
 
   // Verify password
@@ -183,24 +225,58 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate tokens
-  const token = generateToken(user.id, user.email, user.role);
-  const refreshToken = generateRefreshToken();
-  await storeRefreshToken(user.id, refreshToken);
+  await sendLoginResponse(res, user, 'Login successful');
+});
 
-  res.json({
-    success: true,
-    message: 'Login successful',
-    token,
-    refreshToken,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status
-    }
-  });
+// Login with Google ID token
+const googleLogin = asyncHandler(async (req, res) => {
+  const { idToken } = req.body;
+  const googleClientId = getGoogleClientId();
+
+  if (!googleClientId) {
+    return res.status(500).json({
+      success: false,
+      message: 'Google sign-in is not configured'
+    });
+  }
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: googleClientId
+    });
+    payload = ticket.getPayload();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid Google token'
+    });
+  }
+
+  if (!payload?.email || payload.email_verified !== true) {
+    return res.status(401).json({
+      success: false,
+      message: 'Google account email is not verified'
+    });
+  }
+
+  const user = await db('users')
+    .whereRaw('LOWER(email) = ?', [payload.email.toLowerCase()])
+    .first();
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'No IAMS account is linked to this Google email'
+    });
+  }
+
+  if (!assertUserCanLogin(user, res)) {
+    return;
+  }
+
+  await sendLoginResponse(res, user, 'Google login successful');
 });
 
 // Get current user profile
@@ -356,6 +432,7 @@ const logout = asyncHandler(async (req, res) => {
 module.exports = {
   register,
   login,
+  googleLogin,
   refreshToken,
   getProfile,
   updateProfile,

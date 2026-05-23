@@ -14,7 +14,7 @@ const {
 
 // Import middleware
 const auth = require('../middleware/auth');
-const { authorize } = require('../middleware/rbac');
+const { authorize, rbac } = require('../middleware/rbac');
 const { validators } = require('../middleware/validation');
 
 // Apply authentication to all routes
@@ -25,7 +25,7 @@ router.post('/', authorize.student(), validators.attachment, createAttachment);
 router.get('/my-attachments', authorize.student(), getStudentAttachments);
 
 // Staff routes (admin + uni_supervisor)
-router.get('/', authorize.staff(), getAllAttachments);
+router.get('/', rbac(['admin', 'uni_supervisor', 'student']), getAllAttachments);
 router.get('/:id', authorize.staff(), getAttachmentById);
 router.put('/:id', authorize.admin(), updateAttachment);
 router.put('/:id/status', authorize.admin(), updateAttachmentStatus);

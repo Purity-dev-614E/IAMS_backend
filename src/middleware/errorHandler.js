@@ -3,7 +3,7 @@ const errorHandler = (err, req, res, next) => {
   error.message = err.message;
 
   // Log error
-  console.error('Error:', {
+  console.error('❌ Error:', {
     message: err.message,
     stack: err.stack,
     url: req.url,

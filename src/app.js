@@ -81,6 +81,7 @@ app.use('/api/daily-logs', dailyLogRoutes);
 app.use('/api/weekly-reviews', weeklyReviewRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/admin/reports', reportRoutes);
 app.use('/api/end-of-attachment-reports', endOfAttachmentReportRoutes);
 
 // API routes with authentication and authorization
@@ -169,10 +170,16 @@ app.get('/api/industry/review/:token', industryAuth, (req, res) => {
     review: {
       weeklyReviewId: req.industrySupervisor.weeklyReviewId,
       weekNumber: req.industrySupervisor.weekNumber,
+      week_number: req.industrySupervisor.weekNumber,
       weekStart: req.feedback.week_start_date,
+      week_start_date: req.feedback.week_start_date,
       weekEnd: req.feedback.week_end_date,
+      week_end_date: req.feedback.week_end_date,
       student: req.industrySupervisor.student,
+      student_name: req.industrySupervisor.student.name,
+      reg_number: req.industrySupervisor.student.regNumber,
       organization: req.industrySupervisor.organization,
+      organization_name: req.industrySupervisor.organization,
       supervisor: {
         name: req.industrySupervisor.name,
         email: req.industrySupervisor.email
@@ -194,8 +201,11 @@ app.get('/api/industry/review/:token/logs', industryAuth, async (req, res) => {
         'daily_logs.id',
         'daily_logs.log_date',
         'daily_logs.tasks_performed',
+        'daily_logs.tasks_performed as tasks_done',
         'daily_logs.skills_acquired',
+        'daily_logs.skills_acquired as skills_gained',
         'daily_logs.observations',
+        'daily_logs.observations as challenges',
         'daily_logs.status'
       );
 
@@ -280,6 +290,36 @@ app.post('/api/admin/send-weekly-reviews',
       res.status(500).json({
         success: false,
         message: 'Error processing weekly reviews',
+        error: error.message
+      });
+    }
+  }
+);
+
+// Admin endpoint to send a standalone test email from Postman
+app.post('/api/admin/test-email',
+  auth,
+  authorize.admin(),
+  strictLimiter,
+  async (req, res) => {
+    try {
+      const { to, subject, message } = req.body;
+
+      if (!to) {
+        return res.status(400).json({
+          success: false,
+          message: 'Recipient email is required'
+        });
+      }
+
+      const { sendTestEmail } = require('./services/emailService');
+      const result = await sendTestEmail({ to, subject, message });
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error sending test email',
         error: error.message
       });
     }

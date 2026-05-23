@@ -8,6 +8,7 @@ const {
   createWeeklyReview,
   createWeeklyReviewsAutomated,
   updateWeeklyReviewStatus,
+  submitUniversityFeedback,
   getStudentWeeklyReviews
 } = require('../controllers/weeklyReviewController');
 
@@ -22,7 +23,8 @@ router.use(auth);
 // Admin and Student routes
 router.post('/', rbac(['admin', 'student']), validators.weeklyReview, createWeeklyReview);
 router.post('/automated', rbac(['admin', 'student']), createWeeklyReviewsAutomated);
-router.put('/:id/status', authorize.admin(), updateWeeklyReviewStatus);
+router.post('/:id/university-feedback', rbac(['admin', 'uni_supervisor']), submitUniversityFeedback);
+router.put('/:id/status', rbac(['admin', 'uni_supervisor']), updateWeeklyReviewStatus);
 
 // Student routes (must come before /:id to avoid route conflicts)
 router.get('/my-reviews', authorize.student(), getStudentWeeklyReviews);

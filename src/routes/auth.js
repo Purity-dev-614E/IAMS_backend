@@ -5,6 +5,7 @@ const router = express.Router();
 const {
   register,
   login,
+  googleLogin,
   refreshToken,
   getProfile,
   updateProfile,
@@ -19,6 +20,7 @@ const { validators } = require('../middleware/validation');
 // Public routes
 router.post('/register', validators.registerUser, register);
 router.post('/login', validators.loginUser, login);
+router.post('/google', validators.googleLogin, googleLogin);
 router.post('/refresh-token', validators.refreshToken, refreshToken);
 
 // Protected routes

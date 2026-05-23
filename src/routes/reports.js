@@ -3,6 +3,8 @@ const router = express.Router();
 
 // Import controllers
 const {
+  getAdminReportsSummary,
+  generateAdminReport,
   generateStudentReport,
   generateCohortReport,
   generateWeeklyReviewStatusReport,
@@ -17,6 +19,8 @@ const { authorize } = require('../middleware/rbac');
 router.use(auth);
 
 // Generate reports (admin and staff)
+router.get('/summary', authorize.admin(), getAdminReportsSummary);
+router.post('/generate', authorize.admin(), generateAdminReport);
 router.post('/generate/student', authorize.staff(), generateStudentReport);
 router.post('/generate/cohort', authorize.admin(), generateCohortReport);
 router.post('/generate/weekly-review-status', authorize.staff(), generateWeeklyReviewStatusReport);

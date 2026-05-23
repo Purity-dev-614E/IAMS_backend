@@ -3,7 +3,7 @@ const db = require('../database/connection');
 
 const industryAuth = async (req, res, next) => {
   try {
-    const token = req.header('X-Industry-Token') || req.query.token;
+    const token = req.header('X-Industry-Token') || req.params.token || req.query.token;
     
     if (!token) {
       return res.status(401).json({ 
@@ -21,6 +21,7 @@ const industryAuth = async (req, res, next) => {
       .where('industry_feedback.verification_token', token)
       .select(
         'industry_feedback.*',
+        'weekly_reviews.attachment_id',
         'weekly_reviews.week_number',
         'weekly_reviews.week_start_date',
         'weekly_reviews.week_end_date',

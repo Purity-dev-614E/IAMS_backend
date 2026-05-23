@@ -1,6 +1,296 @@
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
 
+const REPORT_TYPES = {
+  WEEKLY_REVIEW_STATUS: 'weekly-review-status',
+  ATTACHMENT_SUMMARY: 'attachment-summary',
+  FINAL_REPORT_READINESS: 'final-report-readiness'
+};
+
+const toNumber = (value) => Number(value || 0);
+
+const countWeekdaysInclusive = (startDate, endDate) => {
+  if (!startDate || !endDate) {
+    return 0;
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return 0;
+  }
+
+  let count = 0;
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) {
+      count += 1;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return count;
+};
+
+const getMissingExpectedDailyLogs = async () => {
+  const today = new Date();
+
+  const attachments = await db('attachments')
+    .leftJoin('daily_logs', 'attachments.id', 'daily_logs.attachment_id')
+    .whereIn('attachments.status', ['active', 'completed'])
+    .where('attachments.start_date', '<=', db.raw('CURRENT_DATE'))
+    .select(
+      'attachments.id',
+      'attachments.start_date',
+      'attachments.end_date',
+      db.raw("COUNT(DISTINCT CASE WHEN daily_logs.status = 'submitted' THEN daily_logs.log_date END) as submitted_logs")
+    )
+    .groupBy('attachments.id');
+
+  return attachments.reduce((total, attachment) => {
+    const expectedEnd = new Date(attachment.end_date) < today
+      ? attachment.end_date
+      : today;
+    const expected = countWeekdaysInclusive(attachment.start_date, expectedEnd);
+    const missing = Math.max(0, expected - toNumber(attachment.submitted_logs));
+
+    return total + missing;
+  }, 0);
+};
+
+// Get admin reports summary
+const getAdminReportsSummary = asyncHandler(async (req, res) => {
+  const [
+    attachmentStats,
+    weeklyReviewStats,
+    dailyLogStats,
+    supervisorCoverageStats,
+    finalReportStats,
+    missingExpected
+  ] = await Promise.all([
+    db('attachments')
+      .select(
+        db.raw("COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending"),
+        db.raw("COUNT(CASE WHEN status = 'active' THEN 1 END) as active"),
+        db.raw("COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive"),
+        db.raw("COUNT(CASE WHEN status = 'completed' THEN 1 END) as complete")
+      )
+      .first(),
+    db('weekly_reviews')
+      .select(
+        db.raw('COUNT(*) as total'),
+        db.raw("COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending"),
+        db.raw("COUNT(CASE WHEN status = 'industry_reviewed' THEN 1 END) as industry_reviewed"),
+        db.raw("COUNT(CASE WHEN status = 'uni_reviewed' THEN 1 END) as university_reviewed"),
+        db.raw("COUNT(CASE WHEN status = 'complete' THEN 1 END) as complete")
+      )
+      .first(),
+    db('daily_logs')
+      .select(
+        db.raw("COUNT(CASE WHEN status = 'submitted' THEN 1 END) as submitted"),
+        db.raw("COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft")
+      )
+      .first(),
+    db('students')
+      .select(
+        db.raw('COUNT(CASE WHEN uni_supervisor_id IS NOT NULL THEN 1 END) as assigned_students'),
+        db.raw('COUNT(CASE WHEN uni_supervisor_id IS NULL THEN 1 END) as unassigned_students')
+      )
+      .first(),
+    db('attachments')
+      .leftJoin('end_of_attachment_reports', 'attachments.id', 'end_of_attachment_reports.attachment_id')
+      .where('attachments.status', 'completed')
+      .select(
+        db.raw('COUNT(DISTINCT attachments.id) as eligible'),
+        db.raw('COUNT(DISTINCT end_of_attachment_reports.id) as submitted'),
+        db.raw("COUNT(DISTINCT CASE WHEN end_of_attachment_reports.status IN ('submitted', 'under_review') THEN end_of_attachment_reports.id END) as ready_for_review")
+      )
+      .first(),
+    getMissingExpectedDailyLogs()
+  ]);
+
+  const eligibleFinalReports = toNumber(finalReportStats.eligible);
+  const submittedFinalReports = toNumber(finalReportStats.submitted);
+
+  res.json({
+    success: true,
+    summary: {
+      attachments: {
+        pending: toNumber(attachmentStats.pending),
+        active: toNumber(attachmentStats.active),
+        inactive: toNumber(attachmentStats.inactive),
+        complete: toNumber(attachmentStats.complete)
+      },
+      weeklyReviews: {
+        total: toNumber(weeklyReviewStats.total),
+        pending: toNumber(weeklyReviewStats.pending),
+        industryReviewed: toNumber(weeklyReviewStats.industry_reviewed),
+        universityReviewed: toNumber(weeklyReviewStats.university_reviewed),
+        complete: toNumber(weeklyReviewStats.complete)
+      },
+      dailyLogs: {
+        submitted: toNumber(dailyLogStats.submitted),
+        draft: toNumber(dailyLogStats.draft),
+        missingExpected
+      },
+      supervisorCoverage: {
+        assignedStudents: toNumber(supervisorCoverageStats.assigned_students),
+        unassignedStudents: toNumber(supervisorCoverageStats.unassigned_students)
+      },
+      finalReports: {
+        eligible: eligibleFinalReports,
+        submitted: submittedFinalReports,
+        pending: Math.max(0, eligibleFinalReports - submittedFinalReports),
+        readyForReview: toNumber(finalReportStats.ready_for_review)
+      }
+    }
+  });
+});
+
+const buildWeeklyReviewStatusReport = async () => {
+  const rows = await db('weekly_reviews')
+    .select(
+      'week_number',
+      db.raw('COUNT(*) as total'),
+      db.raw("COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending"),
+      db.raw("COUNT(CASE WHEN status = 'industry_reviewed' THEN 1 END) as industry_reviewed"),
+      db.raw("COUNT(CASE WHEN status = 'uni_reviewed' THEN 1 END) as university_reviewed"),
+      db.raw("COUNT(CASE WHEN status = 'complete' THEN 1 END) as complete")
+    )
+    .groupBy('week_number')
+    .orderBy('week_number', 'asc');
+
+  return {
+    type: REPORT_TYPES.WEEKLY_REVIEW_STATUS,
+    title: 'Weekly review status',
+    columns: [
+      { key: 'week', label: 'Week' },
+      { key: 'total', label: 'Total reviews' },
+      { key: 'pending', label: 'Pending' },
+      { key: 'industryReviewed', label: 'Industry reviewed' },
+      { key: 'universityReviewed', label: 'University reviewed' },
+      { key: 'complete', label: 'Complete' }
+    ],
+    rows: rows.map(row => ({
+      week: `Week ${row.week_number}`,
+      total: toNumber(row.total),
+      pending: toNumber(row.pending),
+      industryReviewed: toNumber(row.industry_reviewed),
+      universityReviewed: toNumber(row.university_reviewed),
+      complete: toNumber(row.complete)
+    }))
+  };
+};
+
+const buildAttachmentSummaryReport = async () => {
+  const rows = await db('attachments')
+    .leftJoin('daily_logs', 'attachments.id', 'daily_logs.attachment_id')
+    .leftJoin('weekly_reviews', 'attachments.id', 'weekly_reviews.attachment_id')
+    .select(
+      'attachments.status',
+      db.raw('COUNT(DISTINCT attachments.id) as total'),
+      db.raw('COUNT(DISTINCT daily_logs.id) as daily_logs_count'),
+      db.raw("COUNT(DISTINCT CASE WHEN daily_logs.status = 'submitted' THEN daily_logs.id END) as submitted_logs"),
+      db.raw('COUNT(DISTINCT weekly_reviews.id) as weekly_reviews_count')
+    )
+    .groupBy('attachments.status')
+    .orderBy('attachments.status', 'asc');
+
+  return {
+    type: REPORT_TYPES.ATTACHMENT_SUMMARY,
+    title: 'Attachment summary',
+    columns: [
+      { key: 'status', label: 'Status' },
+      { key: 'total', label: 'Total attachments' },
+      { key: 'dailyLogs', label: 'Daily logs' },
+      { key: 'submittedLogs', label: 'Submitted logs' },
+      { key: 'weeklyReviews', label: 'Weekly reviews' }
+    ],
+    rows: rows.map(row => ({
+      status: row.status === 'completed' ? 'complete' : row.status,
+      total: toNumber(row.total),
+      dailyLogs: toNumber(row.daily_logs_count),
+      submittedLogs: toNumber(row.submitted_logs),
+      weeklyReviews: toNumber(row.weekly_reviews_count)
+    }))
+  };
+};
+
+const buildFinalReportReadinessReport = async () => {
+  const rows = await db('attachments')
+    .join('students', 'attachments.student_id', 'students.id')
+    .join('users', 'students.user_id', 'users.id')
+    .leftJoin('end_of_attachment_reports', 'attachments.id', 'end_of_attachment_reports.attachment_id')
+    .where('attachments.status', 'completed')
+    .select(
+      'users.name as student_name',
+      'students.reg_number as reg_number',
+      'attachments.organization_name as organization',
+      'attachments.status as attachment_status',
+      'attachments.end_date as end_date',
+      'end_of_attachment_reports.status as final_report_status',
+      'end_of_attachment_reports.submitted_at as submitted_at'
+    )
+    .orderBy('attachments.end_date', 'desc');
+
+  return {
+    type: REPORT_TYPES.FINAL_REPORT_READINESS,
+    title: 'Final report readiness',
+    columns: [
+      { key: 'studentName', label: 'Student' },
+      { key: 'regNumber', label: 'Reg number' },
+      { key: 'organization', label: 'Organization' },
+      { key: 'attachmentStatus', label: 'Attachment status' },
+      { key: 'endDate', label: 'End date' },
+      { key: 'finalReportStatus', label: 'Final report status' },
+      { key: 'readyForReview', label: 'Ready for review' }
+    ],
+    rows: rows.map(row => ({
+      studentName: row.student_name,
+      regNumber: row.reg_number,
+      organization: row.organization,
+      attachmentStatus: row.attachment_status === 'completed' ? 'complete' : row.attachment_status,
+      endDate: row.end_date,
+      finalReportStatus: row.final_report_status || 'pending',
+      readyForReview: ['submitted', 'under_review'].includes(row.final_report_status)
+    }))
+  };
+};
+
+// Generate generic admin report
+const generateAdminReport = asyncHandler(async (req, res) => {
+  const { type } = req.body;
+
+  const builders = {
+    [REPORT_TYPES.WEEKLY_REVIEW_STATUS]: buildWeeklyReviewStatusReport,
+    [REPORT_TYPES.ATTACHMENT_SUMMARY]: buildAttachmentSummaryReport,
+    [REPORT_TYPES.FINAL_REPORT_READINESS]: buildFinalReportReadinessReport
+  };
+
+  if (!builders[type]) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid report type',
+      allowedTypes: Object.values(REPORT_TYPES)
+    });
+  }
+
+  const report = await builders[type]();
+
+  res.json({
+    success: true,
+    report: {
+      ...report,
+      generatedAt: new Date().toISOString()
+    }
+  });
+});
+
 // Generate student report
 const generateStudentReport = asyncHandler(async (req, res) => {
   const { studentId, format = 'json' } = req.body;
@@ -374,6 +664,8 @@ function generatePDFReport(res, data, filename) {
 }
 
 module.exports = {
+  getAdminReportsSummary,
+  generateAdminReport,
   generateStudentReport,
   generateCohortReport,
   generateWeeklyReviewStatusReport,

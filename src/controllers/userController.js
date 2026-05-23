@@ -1,5 +1,6 @@
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { sendSupervisorStatusNotification } = require('../services/emailService');
 
 // Get all users (admin only)
 const getAllUsers = asyncHandler(async (req, res) => {
@@ -255,7 +256,11 @@ const approveSupervisor = asyncHandler(async (req, res) => {
       updated_at: new Date()
     });
 
-  // TODO: Send approval email to supervisor
+  try {
+    await sendSupervisorStatusNotification(user, 'approved');
+  } catch (error) {
+    console.error(`Failed to send supervisor approval email to ${user.email}:`, error.message);
+  }
 
   res.json({
     success: true,
@@ -287,7 +292,11 @@ const rejectSupervisor = asyncHandler(async (req, res) => {
       updated_at: new Date()
     });
 
-  // TODO: Send rejection email to supervisor
+  try {
+    await sendSupervisorStatusNotification(user, 'rejected');
+  } catch (error) {
+    console.error(`Failed to send supervisor rejection email to ${user.email}:`, error.message);
+  }
 
   res.json({
     success: true,

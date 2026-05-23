@@ -61,6 +61,11 @@ const schemas = {
     password: Joi.string().required()
   }),
 
+  // Google login
+  googleLogin: Joi.object({
+    idToken: Joi.string().required()
+  }),
+
   // Student profile
   studentProfile: Joi.object({
     reg_number: Joi.string().required(),
@@ -183,6 +188,11 @@ const validators = {
   loginUser: [
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
     body('password').notEmpty().withMessage('Password required'),
+    validate
+  ],
+
+  googleLogin: [
+    body('idToken').isString().notEmpty().withMessage('Google ID token required'),
     validate
   ],
 

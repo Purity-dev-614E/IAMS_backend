@@ -8,6 +8,54 @@ const {
   groupLogsByWeek 
 } = require('../utils/dateHelpers');
 
+const getReviewWithStudent = (id) => db('weekly_reviews')
+  .join('attachments', 'weekly_reviews.attachment_id', 'attachments.id')
+  .join('students', 'attachments.student_id', 'students.id')
+  .where('weekly_reviews.id', id)
+  .select(
+    'weekly_reviews.*',
+    'students.uni_supervisor_id',
+    'students.id as student_id'
+  )
+  .first();
+
+const canManageUniversityFeedback = (req, review) => {
+  if (req.user.role === 'admin') return true;
+  return req.user.role === 'uni_supervisor' && review.uni_supervisor_id === req.user.id;
+};
+
+const upsertUniversityFeedback = async (trx, { weeklyReviewId, userId, comments, improvements, rating }) => {
+  const existingFeedback = await trx('uni_feedback')
+    .where('weekly_review_id', weeklyReviewId)
+    .first();
+
+  const feedbackData = {
+    uni_supervisor_id: userId,
+    comments: comments || null,
+    improvements: improvements || null,
+    rating: rating === '' || rating === undefined ? null : rating,
+    updated_at: new Date()
+  };
+
+  if (existingFeedback) {
+    const [updatedFeedback] = await trx('uni_feedback')
+      .where('id', existingFeedback.id)
+      .update(feedbackData)
+      .returning('*');
+
+    return updatedFeedback;
+  }
+
+  const [createdFeedback] = await trx('uni_feedback')
+    .insert({
+      weekly_review_id: weeklyReviewId,
+      ...feedbackData
+    })
+    .returning('*');
+
+  return createdFeedback;
+};
+
 // Get weekly reviews for attachment
 const getWeeklyReviewsByAttachment = asyncHandler(async (req, res) => {
   const { attachmentId } = req.params;
@@ -274,7 +322,7 @@ const createWeeklyReviewsAutomated = asyncHandler(async (req, res) => {
 // Update weekly review status
 const updateWeeklyReviewStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, uni_comments, uni_improvements, uni_rating } = req.body;
 
   if (!['pending', 'industry_reviewed', 'uni_reviewed', 'complete'].includes(status)) {
     return res.status(400).json({
@@ -284,7 +332,7 @@ const updateWeeklyReviewStatus = asyncHandler(async (req, res) => {
   }
 
   // Check if review exists
-  const review = await db('weekly_reviews').where({ id }).first();
+  const review = await getReviewWithStudent(id);
   if (!review) {
     return res.status(404).json({
       success: false,
@@ -292,19 +340,107 @@ const updateWeeklyReviewStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  // Update status
-  const [updatedReview] = await db('weekly_reviews')
-    .where({ id })
-    .update({ 
-      status,
-      updated_at: new Date()
-    })
-    .returning('*');
+  if (req.user.role === 'uni_supervisor' && !canManageUniversityFeedback(req, review)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. You can only update reviews for students assigned to you.'
+    });
+  }
+
+  const hasUniversityFeedback =
+    uni_comments !== undefined ||
+    uni_improvements !== undefined ||
+    uni_rating !== undefined;
+
+  const result = await db.transaction(async (trx) => {
+    let feedback = null;
+
+    if (hasUniversityFeedback) {
+      feedback = await upsertUniversityFeedback(trx, {
+        weeklyReviewId: id,
+        userId: req.user.id,
+        comments: uni_comments,
+        improvements: uni_improvements,
+        rating: uni_rating
+      });
+    }
+
+    const [updatedReview] = await trx('weekly_reviews')
+      .where({ id })
+      .update({
+        status,
+        updated_at: new Date()
+      })
+      .returning('*');
+
+    return { updatedReview, feedback };
+  });
 
   res.json({
     success: true,
     message: 'Weekly review status updated successfully',
-    review: updatedReview
+    review: {
+      ...result.updatedReview,
+      ...(result.feedback && {
+        uni_comments: result.feedback.comments,
+        uni_improvements: result.feedback.improvements,
+        uni_rating: result.feedback.rating,
+        uni_feedback_date: result.feedback.updated_at || result.feedback.created_at
+      })
+    }
+  });
+});
+
+// Submit university supervisor feedback
+const submitUniversityFeedback = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { uni_comments, uni_improvements, uni_rating } = req.body;
+
+  const review = await getReviewWithStudent(id);
+  if (!review) {
+    return res.status(404).json({
+      success: false,
+      message: 'Weekly review not found'
+    });
+  }
+
+  if (!canManageUniversityFeedback(req, review)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. You can only submit feedback for students assigned to you.'
+    });
+  }
+
+  const result = await db.transaction(async (trx) => {
+    const feedback = await upsertUniversityFeedback(trx, {
+      weeklyReviewId: id,
+      userId: req.user.id,
+      comments: uni_comments,
+      improvements: uni_improvements,
+      rating: uni_rating
+    });
+
+    const [updatedReview] = await trx('weekly_reviews')
+      .where({ id })
+      .update({
+        status: 'complete',
+        updated_at: new Date()
+      })
+      .returning('*');
+
+    return { updatedReview, feedback };
+  });
+
+  res.json({
+    success: true,
+    message: 'University feedback submitted successfully',
+    review: {
+      ...result.updatedReview,
+      uni_comments: result.feedback.comments,
+      uni_improvements: result.feedback.improvements,
+      uni_rating: result.feedback.rating,
+      uni_feedback_date: result.feedback.updated_at || result.feedback.created_at
+    }
   });
 });
 
@@ -324,8 +460,24 @@ const getStudentWeeklyReviews = asyncHandler(async (req, res) => {
 
   let query = db('weekly_reviews')
     .join('attachments', 'weekly_reviews.attachment_id', 'attachments.id')
+    .leftJoin('industry_feedback', 'weekly_reviews.id', 'industry_feedback.weekly_review_id')
+    .leftJoin('uni_feedback', 'weekly_reviews.id', 'uni_feedback.weekly_review_id')
+    .leftJoin('users as supervisors', 'uni_feedback.uni_supervisor_id', 'supervisors.id')
     .where('attachments.student_id', student.id)
-    .orderBy('week_number', 'desc');
+    .select(
+      'weekly_reviews.*',
+      'attachments.organization_name',
+      'industry_feedback.approval as industry_approval',
+      'industry_feedback.comments as industry_comments',
+      'industry_feedback.improvements as industry_improvements',
+      'industry_feedback.submitted_at as industry_feedback_date',
+      'uni_feedback.rating as uni_rating',
+      'uni_feedback.comments as uni_comments',
+      'uni_feedback.improvements as uni_improvements',
+      'uni_feedback.updated_at as uni_feedback_date',
+      'supervisors.name as uni_supervisor_name'
+    )
+    .orderBy('weekly_reviews.week_number', 'desc');
 
   if (status) {
     query = query.where('weekly_reviews.status', status);
@@ -356,5 +508,6 @@ module.exports = {
   createWeeklyReview,
   createWeeklyReviewsAutomated,
   updateWeeklyReviewStatus,
+  submitUniversityFeedback,
   getStudentWeeklyReviews
 };

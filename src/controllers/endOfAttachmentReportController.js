@@ -137,14 +137,13 @@ const getStudentReports = asyncHandler(async (req, res) => {
 
   const reports = await db('end_of_attachment_reports')
     .join('attachments', 'end_of_attachment_reports.attachment_id', 'attachments.id')
-    .join('users', 'end_of_attachment_reports.reviewed_by', 'users.id')
-    .leftJoin('users', 'end_of_attachment_reports.reviewed_by', 'users.id')
+    .leftJoin('users as reviewers', 'end_of_attachment_reports.reviewed_by', 'reviewers.id')
     .select(
       'end_of_attachment_reports.*',
       'attachments.organization_name',
       'attachments.start_date',
       'attachments.end_date',
-      'users.name as reviewed_by_name'
+      'reviewers.name as reviewed_by_name'
     )
     .where('end_of_attachment_reports.student_id', student.id)
     .orderBy('end_of_attachment_reports.created_at', 'desc');

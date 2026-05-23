@@ -57,7 +57,7 @@ exports.up = function(knex) {
         table.string('industry_supervisor_email').notNullable();
         table.date('start_date').notNullable();
         table.date('end_date').notNullable();
-        table.enum('status', ['pending', 'active', 'completed']).defaultTo('pending');
+        table.enum('status', ['pending', 'active', 'completed', 'inactive']).defaultTo('pending');
         table.timestamps(true, true);
         
         table.foreign('student_id').references('id').inTable('students').onDelete('CASCADE');
