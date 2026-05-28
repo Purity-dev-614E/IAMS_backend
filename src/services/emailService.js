@@ -591,11 +591,147 @@ const sendSupervisorStatusNotification = async (supervisor, status) => {
   }
 };
 
+const sendEligibilityReviewNotification = async ({ review, student }) => {
+  try {
+    ensureEmailConfigured();
+
+    const recipients = (process.env.ATTACHMENT_REVIEW_NOTIFICATION_EMAILS || process.env.ADMIN_EMAIL || '')
+      .split(',')
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+    if (recipients.length === 0) {
+      throw new Error('No eligibility review notification recipient configured.');
+    }
+
+    const adminLink = `${getFrontendUrl()}/admin/attachment-eligibility/reviews`;
+    const result = await sendEmail({
+      from: process.env.FROM_EMAIL || 'IAMS <noreply@iams.edu>',
+      to: recipients,
+      subject: `Attachment Eligibility Review - ${student.student_name}`,
+      html: buildEmailShell({
+        eyebrow: 'Eligibility review',
+        title: 'Student requested attachment eligibility review',
+        preheader: `${student.student_name} submitted an eligibility review request in IAMS.`,
+        body: `
+          <tr>
+            <td style="padding: 30px;">
+              <p style="margin: 0 0 14px; color: #0f172a; font-size: 16px; line-height: 1.7;">
+                A student has requested manual review for attachment registration eligibility.
+              </p>
+
+              ${buildDetailsPanel([
+                { label: 'Student', value: student.student_name || 'Not provided' },
+                { label: 'Email', value: student.student_email || 'Not provided' },
+                { label: 'Registration number', value: student.reg_number || 'Not provided' },
+                { label: 'Program', value: student.program || 'Not provided' },
+                { label: 'School', value: student.school || 'Not provided' },
+                { label: 'Year of study', value: student.year_of_study || 'Not provided' },
+                { label: 'Reason', value: review.reason_type || 'other' }
+              ])}
+
+              <p style="margin: 0 0 22px; color: #334155; font-size: 15px; line-height: 1.7;">
+                <strong style="color: #0f172a;">Student explanation:</strong><br>
+                ${escapeHtml(review.explanation)}
+              </p>
+
+              <div style="text-align: center; margin: 28px 0 10px;">
+                <a href="${escapeHtml(adminLink)}" style="display: inline-block; background: #16a34a; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 999px; font-size: 15px; font-weight: 800;">
+                  Open Admin Review
+                </a>
+              </div>
+            </td>
+          </tr>
+        `
+      })
+    });
+
+    console.log('Eligibility review notification sent');
+    console.log(`Provider: ${result.provider}`);
+    console.log(`Email ID: ${result.id || 'not returned'}`);
+
+    return { success: true, message: 'Eligibility review notification sent successfully' };
+  } catch (error) {
+    console.error('Error sending eligibility review notification:', error);
+    throw error;
+  }
+};
+
+const sendEligibilityReviewDecisionNotification = async ({ review, student }) => {
+  try {
+    ensureEmailConfigured();
+
+    if (!student?.student_email) {
+      throw new Error('Student email is required for eligibility review decision notification.');
+    }
+
+    const isApproved = review.status === 'approved';
+    const attachmentLink = `${getFrontendUrl()}/attachments`;
+    const result = await sendEmail({
+      from: process.env.FROM_EMAIL || 'IAMS <noreply@iams.edu>',
+      to: student.student_email,
+      subject: isApproved
+        ? 'Attachment Eligibility Review Approved'
+        : 'Attachment Eligibility Review Rejected',
+      html: buildEmailShell({
+        eyebrow: 'Eligibility review decision',
+        title: isApproved ? 'Your review was approved' : 'Your review was rejected',
+        preheader: isApproved
+          ? 'You may now continue with attachment registration in IAMS.'
+          : 'Your attachment eligibility review has been reviewed.',
+        body: `
+          <tr>
+            <td style="padding: 30px;">
+              <p style="margin: 0 0 14px; color: #0f172a; font-size: 16px; line-height: 1.7;">Dear ${escapeHtml(student.student_name || 'Student')},</p>
+              <p style="margin: 0; color: #334155; font-size: 15px; line-height: 1.7;">
+                Your attachment eligibility review request has been <strong style="color: #0f172a;">${escapeHtml(review.status)}</strong>.
+              </p>
+
+              ${buildDetailsPanel([
+                { label: 'Registration number', value: student.reg_number || 'Not provided' },
+                { label: 'Program', value: student.program || 'Not provided' },
+                { label: 'Decision', value: review.status },
+                { label: 'Valid until', value: isApproved ? (review.expires_at || 'No expiry set') : 'Not applicable' }
+              ])}
+
+              ${review.admin_comment ? `
+                <p style="margin: 0 0 22px; color: #334155; font-size: 15px; line-height: 1.7;">
+                  <strong style="color: #0f172a;">Admin comment:</strong><br>
+                  ${escapeHtml(review.admin_comment)}
+                </p>
+              ` : ''}
+
+              ${isApproved ? `
+                <div style="text-align: center; margin: 28px 0 10px;">
+                  <a href="${escapeHtml(attachmentLink)}" style="display: inline-block; background: #16a34a; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 999px; font-size: 15px; font-weight: 800;">
+                    Continue Registration
+                  </a>
+                </div>
+              ` : ''}
+            </td>
+          </tr>
+        `
+      })
+    });
+
+    console.log(`Eligibility review decision sent to ${student.student_email}`);
+    console.log(`Provider: ${result.provider}`);
+    console.log(`Email ID: ${result.id || 'not returned'}`);
+
+    return { success: true, message: 'Eligibility review decision notification sent successfully' };
+  } catch (error) {
+    console.error('Error sending eligibility review decision notification:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendTestEmail,
   sendWeeklyReviewRequest,
   sendDailyLogReminder,
   sendFeedbackConfirmation,
-  sendSupervisorStatusNotification
+  sendSupervisorStatusNotification,
+  sendEligibilityReviewNotification,
+  sendEligibilityReviewDecisionNotification
 };
 

@@ -92,7 +92,19 @@ const sendLoginResponse = async (res, user, message) => {
 
 // Register new user
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role = 'student', staff_id, reg_number, program, year_of_study } = req.body;
+  const {
+    name,
+    email,
+    password,
+    role = 'student',
+    staff_id,
+    reg_number,
+    program,
+    year_of_study,
+    school,
+    admission_year,
+    academic_status
+  } = req.body;
 
   // Check if user already exists
   const existingUser = await db('users').where({ email }).first();
@@ -148,7 +160,10 @@ const register = asyncHandler(async (req, res) => {
         user_id: user.id,
         reg_number,
         program,
-        year_of_study
+        year_of_study,
+        school: school || null,
+        admission_year: admission_year || null,
+        academic_status: academic_status || 'active'
       }).returning('*');
     } catch (error) {
       // Rollback user creation if student profile fails

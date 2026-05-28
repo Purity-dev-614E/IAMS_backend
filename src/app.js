@@ -21,6 +21,7 @@ const weeklyReviewRoutes = require('./routes/weeklyReviews');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
 const endOfAttachmentReportRoutes = require('./routes/endOfAttachmentReports');
+const attachmentEligibilityRoutes = require('./routes/attachmentEligibility');
 
 const app = express();
 const DB_HEALTHCHECK_TIMEOUT_MS = 10000;
@@ -97,6 +98,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/attachments', attachmentRoutes);
+app.use('/api/attachment-eligibility', attachmentEligibilityRoutes);
 app.use('/api/daily-logs', dailyLogRoutes);
 app.use('/api/weekly-reviews', weeklyReviewRoutes);
 app.use('/api/dashboard', dashboardRoutes);

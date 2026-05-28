@@ -52,7 +52,10 @@ const schemas = {
       is: 'student',
       then: Joi.number().integer().min(1).max(6).required(),
       otherwise: Joi.number().optional()
-    })
+    }),
+    school: Joi.string().optional(),
+    admission_year: Joi.number().integer().min(1990).max(2100).optional(),
+    academic_status: Joi.string().valid('active', 'deferred', 'suspended', 'completed', 'graduated', 'inactive').optional()
   }),
 
   // User login
@@ -71,6 +74,9 @@ const schemas = {
     reg_number: Joi.string().required(),
     program: Joi.string().required(),
     year_of_study: Joi.number().integer().min(1).max(6).required(),
+    school: Joi.string().optional(),
+    admission_year: Joi.number().integer().min(1990).max(2100).optional(),
+    academic_status: Joi.string().valid('active', 'deferred', 'suspended', 'completed', 'graduated', 'inactive').optional(),
     uni_supervisor_id: Joi.string().uuid().optional()
   }),
 
@@ -182,6 +188,9 @@ const validators = {
     body('reg_number').if(body('role').equals('student')).trim().notEmpty().withMessage('Registration number required for students'),
     body('program').if(body('role').equals('student')).trim().notEmpty().withMessage('Program required for students'),
     body('year_of_study').if(body('role').equals('student')).isInt({ min: 1, max: 6 }).withMessage('Year must be 1-6 for students'),
+    body('school').optional().trim(),
+    body('admission_year').optional().isInt({ min: 1990, max: 2100 }).withMessage('Admission year must be valid'),
+    body('academic_status').optional().isIn(['active', 'deferred', 'suspended', 'completed', 'graduated', 'inactive']).withMessage('Invalid academic status'),
     validate
   ],
 
@@ -200,6 +209,9 @@ const validators = {
     body('reg_number').trim().notEmpty().withMessage('Registration number required'),
     body('program').trim().notEmpty().withMessage('Program required'),
     body('year_of_study').isInt({ min: 1, max: 6 }).withMessage('Year must be 1-6'),
+    body('school').optional().trim(),
+    body('admission_year').optional().isInt({ min: 1990, max: 2100 }).withMessage('Admission year must be valid'),
+    body('academic_status').optional().isIn(['active', 'deferred', 'suspended', 'completed', 'graduated', 'inactive']).withMessage('Invalid academic status'),
     body('uni_supervisor_id').optional().isUUID().withMessage('Supervisor ID must be a valid UUID'),
     validate
   ],

@@ -1,5 +1,6 @@
 const db = require('../database/connection');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { evaluateAttachmentEligibility } = require('../services/attachmentEligibilityService');
 
 // Get all attachments (admin/supervisor)
 const getAllAttachments = asyncHandler(async (req, res) => {
@@ -153,6 +154,15 @@ const createAttachment = asyncHandler(async (req, res) => {
     return res.status(404).json({
       success: false,
       message: 'Student profile not found'
+    });
+  }
+
+  const eligibility = await evaluateAttachmentEligibility(db, student);
+  if (!eligibility.eligible) {
+    return res.status(403).json({
+      success: false,
+      message: eligibility.message,
+      eligibility
     });
   }
 

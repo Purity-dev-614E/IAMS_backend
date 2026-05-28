@@ -13,7 +13,10 @@ const getAllStudents = asyncHandler(async (req, res) => {
       'students.id',
       'students.reg_number',
       'students.program',
+      'students.school',
       'students.year_of_study',
+      'students.admission_year',
+      'students.academic_status',
       'students.created_at',
       'users.id as user_id',
       'users.name as student_name',
@@ -70,7 +73,10 @@ const getStudentById = asyncHandler(async (req, res) => {
       'students.id',
       'students.reg_number',
       'students.program',
+      'students.school',
       'students.year_of_study',
+      'students.admission_year',
+      'students.academic_status',
       'students.uni_supervisor_id',
       'students.created_at',
       'students.updated_at',
@@ -104,6 +110,9 @@ const createStudent = asyncHandler(async (req, res) => {
     reg_number, 
     program, 
     year_of_study, 
+    school,
+    admission_year,
+    academic_status,
     uni_supervisor_id 
   } = req.body;
 
@@ -144,6 +153,9 @@ const createStudent = asyncHandler(async (req, res) => {
     reg_number,
     program,
     year_of_study,
+    school: school || null,
+    admission_year: admission_year || null,
+    academic_status: academic_status || 'active',
     uni_supervisor_id
   }).returning('*');
 
@@ -161,6 +173,9 @@ const updateStudent = asyncHandler(async (req, res) => {
     reg_number, 
     program, 
     year_of_study, 
+    school,
+    admission_year,
+    academic_status,
     uni_supervisor_id 
   } = req.body;
 
@@ -207,6 +222,9 @@ const updateStudent = asyncHandler(async (req, res) => {
       reg_number: reg_number || existingStudent.reg_number,
       program: program || existingStudent.program,
       year_of_study: year_of_study || existingStudent.year_of_study,
+      school: school !== undefined ? school : existingStudent.school,
+      admission_year: admission_year !== undefined ? admission_year : existingStudent.admission_year,
+      academic_status: academic_status || existingStudent.academic_status,
       uni_supervisor_id: uni_supervisor_id || existingStudent.uni_supervisor_id,
       updated_at: new Date()
     })
@@ -277,7 +295,10 @@ const getSupervisorStudents = asyncHandler(async (req, res) => {
       'students.id',
       'students.reg_number',
       'students.program',
+      'students.school',
       'students.year_of_study',
+      'students.admission_year',
+      'students.academic_status',
       'users.name as student_name',
       'users.email as student_email',
       db.raw('COUNT(attachments.id) as attachment_count')
@@ -302,7 +323,10 @@ const getStudentProfile = asyncHandler(async (req, res) => {
       'students.id',
       'students.reg_number',
       'students.program',
+      'students.school',
       'students.year_of_study',
+      'students.admission_year',
+      'students.academic_status',
       'users.name as student_name',
       'users.email as student_email',
       'supervisors.name as supervisor_name',
