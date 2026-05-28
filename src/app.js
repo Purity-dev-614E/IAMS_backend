@@ -64,6 +64,12 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Prevent crawler requests from becoming noisy API errors.
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send('User-agent: *\nDisallow: /\n');
+});
+
 // Test database connection endpoint (no auth required for testing)
 app.get('/test-db', async (req, res) => {
   try {
