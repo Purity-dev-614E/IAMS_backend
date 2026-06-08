@@ -11,6 +11,7 @@
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
     "seed": "knex seed:run",
+    "seed:sample": "knex seed:run --specific=007_realistic_kenyan_sample_data.js",
     "seed:make": "knex seed:make"
   },
   "keywords": [],
