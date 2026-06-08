@@ -137,7 +137,6 @@ const createDailyLog = asyncHandler(async (req, res) => {
   */
 
   // Validate log date
-  /* Commented out for testing purposes - allow future dates
   const logDate = new Date(log_date);
   const today = new Date();
   
@@ -153,7 +152,6 @@ const createDailyLog = asyncHandler(async (req, res) => {
       message: 'Log date cannot be in the future'
     });
   }
-  */
 
   // Create daily log
   const [log] = await db('daily_logs').insert({

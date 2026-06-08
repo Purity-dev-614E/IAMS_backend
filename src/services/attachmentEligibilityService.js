@@ -137,6 +137,15 @@ const getCurrentAcademicYear = () => {
   return new Date().getFullYear();
 };
 
+const getIntakeYear = (registrationNumber) => {
+  const match = String(registrationNumber || '').match(/\/(\d{4})$/);
+  if (!match) {
+    throw new Error('Invalid registration number format');
+  }
+
+  return Number(match[1]);
+};
+
 const getEffectiveYearOfStudy = (student) => {
   if (student.year_of_study) {
     return Number(student.year_of_study);
@@ -282,6 +291,7 @@ const evaluateAttachmentEligibility = async (db, student) => {
 
 module.exports = {
   evaluateAttachmentEligibility,
+  getIntakeYear,
   getEffectiveYearOfStudy,
   getRuleForStudent,
   getColleges
