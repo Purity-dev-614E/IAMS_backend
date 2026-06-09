@@ -207,6 +207,33 @@ const buildLogs = (student, attachmentId, startDate, count) => {
   return logs;
 };
 
+const buildLogsUntilDate = (student, attachmentId, startDate, endDate) => {
+  const logs = [];
+  let dayOffset = 0;
+
+  while (true) {
+    const logDate = addDays(startDate, dayOffset);
+    dayOffset += 1;
+
+    if (logDate > endDate) break;
+    if ([0, 6].includes(logDate.getDay())) continue;
+
+    const activity = student.activities[logs.length % student.activities.length];
+
+    logs.push({
+      attachment_id: attachmentId,
+      log_date: toDateOnly(logDate),
+      tasks_performed: activity.tasks,
+      skills_acquired: activity.skills,
+      observations: activity.observations,
+      status: 'submitted',
+      submitted_at: logDate
+    });
+  }
+
+  return logs;
+};
+
 exports.seed = async function(knex) {
   await clearExistingData(knex);
 
@@ -248,7 +275,7 @@ exports.seed = async function(knex) {
 
   const today = new Date();
   const students = [
-    ['Amina Njeri', 'akiru5199@gmail.com', 'SCS/2022/014', 'Computer Science', 'Safaricom PLC', 'Janet Wambui', 'puritysang180+janet@gmail.com', -70, 14, 'active'],
+    ['Amina Njeri', 'akiru5199@gmail.com', 'SCS/2022/014', 'Computer Science', 'Safaricom PLC', 'Janet Wambui', 'puritysang180+janet@gmail.com', -70, null, 'active'],
     ['Brian Otieno', 'akiru5199+brian@gmail.com', 'SIT/2022/025', 'Information Technology', 'Kenya Revenue Authority', 'Samuel Kimutai', 'puritysang180+samuel@gmail.com', -42, 12, 'active'],
     ['Charity Wambui', 'akiru5199+charity@gmail.com', 'SCS/2022/033', 'Computer Science', 'Equity Bank Kenya', 'Irene Nyambura', 'puritysang180+irene@gmail.com', -98, 10, 'completed'],
     ['Daniel Kipchumba', 'akiru5199+daniel@gmail.com', 'SWE/2022/011', 'Software Engineering', 'Cellulant Kenya', 'Patrick Onyango', 'puritysang180+patrick@gmail.com', -21, 6, 'active'],
@@ -298,8 +325,55 @@ exports.seed = async function(knex) {
         skills: 'Data quality checks, documentation, and presentation skills.',
         observations: 'Regular feedback made the weekly objectives easier to measure.'
       }
-    ]
+    ],
+    logUntilToday: name === 'Amina Njeri'
   }));
+
+  const amina = students.find((student) => student.name === 'Amina Njeri');
+  if (amina) {
+    amina.activities = [
+      {
+        tasks: 'Checked support tickets and updated customer account notes.',
+        skills: 'Ticket handling and clear status updates.',
+        observations: 'Most requests were resolved faster after confirming the user details first.'
+      },
+      {
+        tasks: 'Tested a dashboard change and shared feedback with the developer.',
+        skills: 'Basic QA testing and bug reporting.',
+        observations: 'Small layout issues were easier to explain with screenshots.'
+      },
+      {
+        tasks: 'Helped clean M-Pesa transaction records for reconciliation.',
+        skills: 'Data cleaning and spreadsheet validation.',
+        observations: 'Duplicate entries needed careful checking before upload.'
+      },
+      {
+        tasks: 'Joined the morning stand-up and followed up on pending tasks.',
+        skills: 'Team communication and task tracking.',
+        observations: 'Short check-ins helped me plan the day better.'
+      },
+      {
+        tasks: 'Reviewed API error logs and noted common failure messages.',
+        skills: 'Log reading and issue classification.',
+        observations: 'Most errors came from missing or wrong request fields.'
+      },
+      {
+        tasks: 'Updated a user guide section after testing the workflow.',
+        skills: 'Technical writing and process documentation.',
+        observations: 'Writing the steps while testing made the guide clearer.'
+      },
+      {
+        tasks: 'Assisted the supervisor with a weekly progress summary.',
+        skills: 'Report writing and summarising work done.',
+        observations: 'Keeping daily notes made the weekly report easier to prepare.'
+      },
+      {
+        tasks: 'Verified sample records in the staging system.',
+        skills: 'Data verification and attention to detail.',
+        observations: 'A checklist reduced missed fields during review.'
+      }
+    ];
+  }
 
   let totalLogs = 0;
   for (const student of students) {
@@ -328,13 +402,15 @@ exports.seed = async function(knex) {
       status: student.status
     });
 
-    const logs = buildLogs(student, attachmentId, student.startDate, student.logCount);
+    const logs = student.logUntilToday
+      ? buildLogsUntilDate(student, attachmentId, student.startDate, today)
+      : buildLogs(student, attachmentId, student.startDate, student.logCount);
     for (const log of logs) {
       await ensureDailyLog(knex, log);
       totalLogs += 1;
     }
 
-    const weeks = Math.max(1, Math.ceil(student.logCount / 5));
+    const weeks = Math.max(1, Math.ceil(logs.length / 5));
     for (let week = 1; week <= weeks; week++) {
       const weekStart = addDays(student.startDate, (week - 1) * 7);
       const reviewStatus = week < weeks - 1
