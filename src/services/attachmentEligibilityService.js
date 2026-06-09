@@ -138,24 +138,39 @@ const getCurrentAcademicYear = () => {
 };
 
 const getIntakeYear = (registrationNumber) => {
-  const match = String(registrationNumber || '').match(/\/(\d{4})$/);
-  if (!match) {
+  const matches = String(registrationNumber || '').match(/\b(?:19|20)\d{2}\b/g);
+  if (!matches) {
     throw new Error('Invalid registration number format');
   }
 
-  return Number(match[1]);
+  return Number(matches[matches.length - 1]);
+};
+
+const getInferredYearOfStudy = (student) => {
+  let intakeYear = null;
+
+  if (student.admission_year) {
+    intakeYear = Number(student.admission_year);
+  } else if (student.reg_number) {
+    try {
+      intakeYear = getIntakeYear(student.reg_number);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  if (!intakeYear) {
+    return null;
+  }
+
+  return getCurrentAcademicYear() - intakeYear + 1;
 };
 
 const getEffectiveYearOfStudy = (student) => {
-  if (student.year_of_study) {
-    return Number(student.year_of_study);
-  }
+  const recordedYear = student.year_of_study ? Number(student.year_of_study) : null;
+  const inferredYear = getInferredYearOfStudy(student);
 
-  if (student.admission_year) {
-    return getCurrentAcademicYear() - Number(student.admission_year) + 1;
-  }
-
-  return null;
+  return inferredYear || recordedYear;
 };
 
 const getActiveApprovedOverride = async (db, studentId) => {

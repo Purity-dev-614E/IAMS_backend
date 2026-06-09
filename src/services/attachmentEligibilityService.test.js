@@ -31,9 +31,27 @@ const createEligibilityDbMock = (attachmentCount = 0) => {
 };
 
 describe('attachment eligibility service', () => {
+  const originalAcademicYear = process.env.CURRENT_ACADEMIC_YEAR;
+
+  beforeEach(() => {
+    process.env.CURRENT_ACADEMIC_YEAR = '2026';
+  });
+
+  afterAll(() => {
+    if (originalAcademicYear === undefined) {
+      delete process.env.CURRENT_ACADEMIC_YEAR;
+    } else {
+      process.env.CURRENT_ACADEMIC_YEAR = originalAcademicYear;
+    }
+  });
+
   describe('getIntakeYear', () => {
     test('UT-05 extracts 2022 from HDB212-0324/2022', () => {
       expect(getIntakeYear('HDB212-0324/2022')).toBe(2022);
+    });
+
+    test('extracts 2022 from SCS/2022/014', () => {
+      expect(getIntakeYear('SCS/2022/014')).toBe(2022);
     });
 
     test('UT-06 returns an error for malformed registration numbers', () => {
@@ -74,6 +92,24 @@ describe('attachment eligibility service', () => {
       expect(result.eligible).toBe(false);
       expect(result.yearOfStudy).toBe(1);
       expect(result.canRequestReview).toBe(true);
+    });
+
+    test('uses registration year to reject stale year_of_study values', async () => {
+      const db = createEligibilityDbMock();
+      const student = {
+        id: 'student-3',
+        school: 'CHRD',
+        program: 'Business Information Technology',
+        reg_number: 'HBD212-0312/2020',
+        year_of_study: 3,
+        academic_status: 'active'
+      };
+
+      const result = await evaluateAttachmentEligibility(db, student);
+
+      expect(result.eligible).toBe(false);
+      expect(result.yearOfStudy).toBe(7);
+      expect(result.source).toBe('school_rule');
     });
   });
 });
