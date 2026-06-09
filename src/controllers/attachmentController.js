@@ -317,9 +317,17 @@ const getStudentAttachments = asyncHandler(async (req, res) => {
   }
 
   const attachments = await db('attachments')
-    .where('student_id', student.id)
-    .orderBy('created_at', 'desc')
-    .select('*');
+    .leftJoin('students', 'attachments.student_id', 'students.id')
+    .leftJoin('users as supervisors', 'students.uni_supervisor_id', 'supervisors.id')
+    .where('attachments.student_id', student.id)
+    .orderBy('attachments.created_at', 'desc')
+    .select(
+      'attachments.*',
+      'students.uni_supervisor_id',
+      'supervisors.name as supervisor_name',
+      'supervisors.email as supervisor_email',
+      'supervisors.staff_id as supervisor_staff_id'
+    );
 
   res.json({
     success: true,
