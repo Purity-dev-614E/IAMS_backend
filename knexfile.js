@@ -8,18 +8,20 @@ module.exports = {
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
       query_timeout: 10000,
-      statement_timeout: 10000
+      statement_timeout: 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000
     },
     pool: {
       min: 0,
       max: 10,
-      acquireTimeoutMillis: 10000,
-      createTimeoutMillis: 10000,
+      acquireTimeoutMillis: 30000,
+      createTimeoutMillis: 30000,
       destroyTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
+      idleTimeoutMillis: 10000,
       reapIntervalMillis: 1000,
-      createRetryIntervalMillis: 100,
-      propagateCreateError: true
+      createRetryIntervalMillis: 200,
+      propagateCreateError: false
     },
     migrations: {
       directory: './src/database/migrations',
@@ -37,18 +39,20 @@ module.exports = {
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
       query_timeout: 10000,
-      statement_timeout: 10000
+      statement_timeout: 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000
     },
     pool: {
       min: 0,
       max: 20,
-      acquireTimeoutMillis: 10000,
-      createTimeoutMillis: 10000,
+      acquireTimeoutMillis: 30000,
+      createTimeoutMillis: 30000,
       destroyTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
+      idleTimeoutMillis: 10000,
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 200,
-      propagateCreateError: true
+      propagateCreateError: false
     },
     migrations: {
       directory: './src/database/migrations',
