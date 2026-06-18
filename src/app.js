@@ -39,21 +39,21 @@ const withTimeout = (promise, timeoutMs, message) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Trust proxy for rate limiting and IP detection
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet);
 app.use(customSecurityHeaders);
 app.use(cors);
 app.use(requestSizeLimiter);
 
-// Rate limiting
+// Rate limiting (after CORS so preflight OPTIONS requests are not rate-limited)
 app.use(generalLimiter);
 
 // Logging middleware
 app.use(securityLogger);
 app.use(logger);
-
-// Trust proxy for rate limiting and IP detection
-app.set('trust proxy', 1);
 
 // Health check endpoint (no auth required)
 app.get('/health', (req, res) => {
